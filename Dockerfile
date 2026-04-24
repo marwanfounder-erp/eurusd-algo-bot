@@ -18,15 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── Application code ───────────────────────────────────────────────────────
 COPY . .
 
-# Persistent volume for logs and paper account state
+# logs/ directory — Railway mounts a persistent volume here via their dashboard
 RUN mkdir -p /app/logs
-VOLUME ["/app/logs"]
 
 # ── Runtime ───────────────────────────────────────────────────────────────
-# Default: paper mode (yfinance feed on Linux/Railway, MT5 feed on Windows).
-# Override CMD at runtime: docker run ... live
-ENTRYPOINT ["python", "main.py"]
-CMD ["paper"]
+# Single CMD form — no ENTRYPOINT so Railway can override the command cleanly.
+CMD ["python", "main.py", "--paper"]
 
 # ── Labels ────────────────────────────────────────────────────────────────
 LABEL maintainer="eurusd-algo-bot" \
