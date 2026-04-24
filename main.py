@@ -27,9 +27,10 @@ from config import settings
 # ──────────────────────────────────────────────────────────────────────
 logger.remove()
 logger.add(
-    sys.stderr,
+    sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | {message}",
     level="INFO",
+    colorize=False,
 )
 logger.add(
     "logs/bot_{time:YYYY-MM-DD}.log",
