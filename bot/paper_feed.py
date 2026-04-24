@@ -38,7 +38,7 @@ class PaperFeed:
         # Load persisted balance from DB; fall back to initial if DB empty
         db = get_db()
         stats = db.get_stats()
-        self._balance: float = float(stats.get("balance", _INITIAL_BALANCE))
+        self._balance: float = float(stats.get("current_balance", _INITIAL_BALANCE))
 
         logger.info(
             "PaperFeed initialised | symbol={} balance=${:.2f}",
@@ -235,12 +235,10 @@ class PaperFeed:
             gross_loss += abs(pnl)
 
         db.update_stats({
-            "balance":      round(self._balance, 2),
-            "total_trades": total_trades,
-            "wins":         wins,
-            "losses":       losses,
-            "gross_profit": round(gross_profit, 2),
-            "gross_loss":   round(gross_loss, 2),
+            "current_balance": round(self._balance, 2),
+            "total_trades":    total_trades,
+            "wins":            wins,
+            "losses":          losses,
         })
 
         # Snapshot after every trade close
@@ -300,7 +298,7 @@ class PaperFeed:
 
     def account_summary(self) -> str:
         """Human-readable paper account summary."""
-        db = get_db()
+        db    = get_db()
         stats = db.get_stats()
         bal   = self._balance
         ret   = (bal - _INITIAL_BALANCE) / _INITIAL_BALANCE

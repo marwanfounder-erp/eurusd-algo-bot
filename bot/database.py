@@ -3,16 +3,27 @@
 Uses psycopg2 SimpleConnectionPool.  Every public method is wrapped in
 try/except so a DB outage never crashes the trading bot.
 
+Actual Neon table schemas (verified):
+  trades          — id, symbol, direction, entry_price, exit_price, stop_loss,
+                    take_profit, lot_size, pips, pnl, status, result, rsi,
+                    confidence, asian_range_pips, asian_high, asian_low,
+                    opened_at, closed_at, mode
+  account_snapshots — id, balance, equity, daily_pnl, total_return_pct,
+                      open_positions, timestamp
+  bot_logs        — id, level, message, timestamp
+  bot_stats       — id, starting_balance, current_balance, total_trades,
+                    wins, losses, today_pnl, last_signal, last_updated
+
 Environment variable required:
-    DATABASE_URL = postgresql://user:pass@host/db   (sslmode=require is added
-                                                     automatically if absent)
+    DATABASE_URL = postgresql://user:pass@host/db
+    (sslmode=require is added automatically if absent)
 """
 from __future__ import annotations
 
 import os
 import threading
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
@@ -40,7 +51,6 @@ class Database:
         if not url:
             logger.error("DATABASE_URL not set — DB features disabled")
             return
-        # Neon requires SSL; add if absent
         if "sslmode" not in url:
             url += ("&" if "?" in url else "?") + "sslmode=require"
         try:
@@ -117,37 +127,27 @@ class Database:
             self._run(
                 """
                 INSERT INTO trades
-                  (id, direction, entry, sl, tp, lot, sl_pips, rsi, opened_at, date)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                  (id, symbol, direction, entry_price, stop_loss, take_profit,
+                   lot_size, rsi, status, mode, opened_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'open',%s,%s)
                 """,
                 (
                     trade_id,
+                    trade.get("symbol", "EURUSD"),
                     trade.get("direction", ""),
                     trade.get("entry", 0.0),
                     trade.get("sl", 0.0),
                     trade.get("tp", 0.0),
                     trade.get("lot", 0.0),
-                    trade.get("sl_pips", 0.0),
                     trade.get("rsi"),
+                    trade.get("mode", "paper"),
                     trade.get("opened_at", datetime.now(tz=timezone.utc).isoformat()),
-                    trade.get("date", date.today().isoformat()),
                 ),
             )
             logger.info("DB: trade {} saved", trade_id[:8])
         except Exception as exc:
             logger.error("DB save_trade failed: {}", exc)
         return trade_id
-
-    def update_trade(self, trade_id: str, updates: dict[str, Any]) -> None:
-        """Update arbitrary columns on a trade row."""
-        if not updates:
-            return
-        set_clause = ", ".join(f"{k} = %s" for k in updates)
-        vals = tuple(updates.values()) + (trade_id,)
-        try:
-            self._run(f"UPDATE trades SET {set_clause} WHERE id = %s", vals)
-        except Exception as exc:
-            logger.error("DB update_trade failed: {}", exc)
 
     def close_trade(
         self,
@@ -165,7 +165,8 @@ class Database:
                    SET exit_price = %s,
                        pnl        = %s,
                        pips       = %s,
-                       outcome    = %s,
+                       result     = %s,
+                       status     = 'closed',
                        closed_at  = %s
                  WHERE id = %s
                 """,
@@ -183,10 +184,10 @@ class Database:
             logger.error("DB close_trade failed: {}", exc)
 
     def get_open_trades(self) -> list[dict[str, Any]]:
-        """Return all trades without a closed_at timestamp."""
+        """Return all trades with status='open'."""
         try:
             return self._run(
-                "SELECT * FROM trades WHERE closed_at IS NULL ORDER BY opened_at DESC",
+                "SELECT * FROM trades WHERE status = 'open' ORDER BY opened_at DESC",
                 fetch="all",
             ) or []
         except Exception as exc:
@@ -197,7 +198,10 @@ class Database:
         """Return all closed trades from today (UTC)."""
         try:
             return self._run(
-                "SELECT * FROM trades WHERE date = CURRENT_DATE ORDER BY opened_at DESC",
+                """SELECT * FROM trades
+                   WHERE status = 'closed'
+                     AND opened_at::date = CURRENT_DATE
+                   ORDER BY opened_at DESC""",
                 fetch="all",
             ) or []
         except Exception as exc:
@@ -208,7 +212,7 @@ class Database:
         """Return most-recent closed trades (newest first)."""
         try:
             return self._run(
-                """SELECT * FROM trades WHERE closed_at IS NOT NULL
+                """SELECT * FROM trades WHERE status = 'closed'
                    ORDER BY closed_at DESC LIMIT %s""",
                 (limit,),
                 fetch="all",
@@ -223,19 +227,18 @@ class Database:
             row = self._run(
                 """
                 SELECT
-                  COUNT(*)                                        AS total_trades,
-                  COUNT(*) FILTER (WHERE outcome = 'win')        AS wins,
-                  COUNT(*) FILTER (WHERE outcome = 'loss')       AS losses,
-                  COALESCE(SUM(pnl) FILTER (WHERE pnl > 0), 0)  AS gross_profit,
+                  COUNT(*)                                          AS total_trades,
+                  COUNT(*) FILTER (WHERE result = 'win')           AS wins,
+                  COUNT(*) FILTER (WHERE result = 'loss')          AS losses,
+                  COALESCE(SUM(pnl) FILTER (WHERE pnl > 0), 0)    AS gross_profit,
                   COALESCE(SUM(ABS(pnl)) FILTER (WHERE pnl < 0), 0) AS gross_loss,
-                  COALESCE(SUM(pnl), 0)                          AS total_pnl,
-                  COALESCE(AVG(pips) FILTER (WHERE outcome = 'win'), 0)  AS avg_win_pips,
-                  COALESCE(AVG(pips) FILTER (WHERE outcome = 'loss'), 0) AS avg_loss_pips,
-                  COALESCE(MAX(pnl), 0)                          AS best_trade_pnl,
-                  COALESCE(MIN(pnl), 0)                          AS worst_trade_pnl,
-                  COALESCE(MAX(closed_at) - MIN(opened_at), INTERVAL '0') AS span
+                  COALESCE(SUM(pnl), 0)                            AS total_pnl,
+                  COALESCE(AVG(pips) FILTER (WHERE result = 'win'),  0) AS avg_win_pips,
+                  COALESCE(AVG(pips) FILTER (WHERE result = 'loss'), 0) AS avg_loss_pips,
+                  COALESCE(MAX(pnl), 0)                            AS best_trade_pnl,
+                  COALESCE(MIN(pnl), 0)                            AS worst_trade_pnl
                 FROM trades
-                WHERE closed_at IS NOT NULL
+                WHERE status = 'closed'
                 """,
                 fetch="one",
             )
@@ -247,12 +250,14 @@ class Database:
             gross_p  = float(row["gross_profit"] or 0)
             gross_l  = float(row["gross_loss"] or 0)
             win_rate = wins / total * 100 if total else 0.0
-            profit_factor = gross_p / gross_l if gross_l > 0 else (999.0 if gross_p > 0 else 0.0)
-
-            # avg monthly return: total_pnl / months_elapsed
-            stats_row = self.get_stats()
-            balance = float(stats_row.get("balance", _INITIAL_BALANCE))
+            profit_factor = (
+                gross_p / gross_l if gross_l > 0
+                else (999.0 if gross_p > 0 else 0.0)
+            )
             total_pnl = float(row["total_pnl"] or 0)
+
+            stats_row = self.get_stats()
+            balance = float(stats_row.get("current_balance", _INITIAL_BALANCE))
             total_return_pct = total_pnl / _INITIAL_BALANCE * 100
 
             return {
@@ -294,14 +299,16 @@ class Database:
         equity: float,
         daily_pnl: float,
         return_pct: float,
+        open_positions: int = 0,
     ) -> None:
         try:
             self._run(
                 """
-                INSERT INTO account_snapshots (balance, equity, daily_pnl, return_pct, created_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO account_snapshots
+                  (balance, equity, daily_pnl, total_return_pct, open_positions, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (balance, equity, daily_pnl, return_pct,
+                (balance, equity, daily_pnl, return_pct, open_positions,
                  datetime.now(tz=timezone.utc).isoformat()),
             )
         except Exception as exc:
@@ -310,10 +317,10 @@ class Database:
     def get_snapshots(self, days: int = 30) -> list[dict[str, Any]]:
         try:
             return self._run(
-                """SELECT balance, equity, daily_pnl, return_pct, created_at
+                """SELECT balance, equity, daily_pnl, total_return_pct, timestamp
                    FROM account_snapshots
-                   WHERE created_at >= NOW() - (%s || ' days')::INTERVAL
-                   ORDER BY created_at ASC""",
+                   WHERE timestamp >= NOW() - (%s || ' days')::INTERVAL
+                   ORDER BY timestamp ASC""",
                 (str(days),),
                 fetch="all",
             ) or []
@@ -322,12 +329,27 @@ class Database:
             return []
 
     def update_stats(self, updates: dict[str, Any]) -> None:
-        """Upsert into bot_stats (single-row table, id=1)."""
+        """Upsert into bot_stats (single-row table, id=1).
+
+        Incoming key aliases supported:
+          balance       → current_balance
+          updated_at    → last_updated
+        """
         if not updates:
             return
-        updates["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
-        cols   = list(updates.keys())
-        vals   = list(updates.values())
+        # Translate any convenience aliases to actual column names
+        mapped: dict[str, Any] = {}
+        for k, v in updates.items():
+            if k == "balance":
+                mapped["current_balance"] = v
+            elif k == "updated_at":
+                mapped["last_updated"] = v
+            else:
+                mapped[k] = v
+        mapped["last_updated"] = datetime.now(tz=timezone.utc).isoformat()
+
+        cols   = list(mapped.keys())
+        vals   = list(mapped.values())
         insert_cols = ", ".join(["id"] + cols)
         insert_phs  = ", ".join(["%s"] * (len(cols) + 1))
         set_clause  = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols)
@@ -345,10 +367,7 @@ class Database:
 
     def get_stats(self) -> dict[str, Any]:
         try:
-            row = self._run(
-                "SELECT * FROM bot_stats WHERE id = 1",
-                fetch="one",
-            )
+            row = self._run("SELECT * FROM bot_stats WHERE id = 1", fetch="one")
             return dict(row) if row else {}
         except Exception as exc:
             logger.error("DB get_stats failed: {}", exc)
@@ -359,14 +378,14 @@ class Database:
     def log(self, level: str, message: str) -> None:
         """Insert a log entry; falls back to in-memory list on DB failure."""
         entry: dict[str, Any] = {
-            "level":      level.upper(),
-            "message":    message,
-            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+            "level":   level.upper(),
+            "message": message,
+            "ts":      datetime.now(tz=timezone.utc).isoformat(),
         }
         try:
             self._run(
-                "INSERT INTO bot_logs (level, message, created_at) VALUES (%s, %s, %s)",
-                (entry["level"], entry["message"], entry["created_at"]),
+                "INSERT INTO bot_logs (level, message, timestamp) VALUES (%s, %s, %s)",
+                (entry["level"], entry["message"], entry["ts"]),
             )
         except Exception as exc:
             logger.warning("DB log failed (using in-memory): {}", exc)
@@ -377,7 +396,8 @@ class Database:
     def get_recent_logs(self, limit: int = 50) -> list[dict[str, Any]]:
         try:
             rows = self._run(
-                "SELECT level, message, created_at FROM bot_logs ORDER BY created_at DESC LIMIT %s",
+                """SELECT level, message, timestamp AS created_at
+                   FROM bot_logs ORDER BY timestamp DESC LIMIT %s""",
                 (limit,),
                 fetch="all",
             )

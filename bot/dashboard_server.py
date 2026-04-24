@@ -238,7 +238,7 @@ def api_status():  # type: ignore[return]
     db = get_db()
     stats = db.get_stats()
 
-    balance     = float(stats.get("balance", _INITIAL_BAL))
+    balance     = float(stats.get("current_balance", _INITIAL_BAL))
     wins        = int(stats.get("wins", 0))
     losses      = int(stats.get("losses", 0))
     total       = wins + losses
@@ -248,7 +248,6 @@ def api_status():  # type: ignore[return]
     today_pnl = sum(
         float(t.get("pnl") or 0)
         for t in db.get_today_trades()
-        if t.get("closed_at")
     )
 
     return jsonify({
@@ -284,22 +283,22 @@ def api_positions():  # type: ignore[return]
     positions = []
     for pos in open_trades:
         direction     = pos.get("direction", "")
-        entry         = float(pos.get("entry") or 0)
+        entry         = float(pos.get("entry_price") or 0)
         current_price = cached.get("ask") if direction == "BUY" else cached.get("bid")
         pip_move      = None
         unrealized    = None
         if current_price:
             pip_move   = ((current_price - entry) if direction == "BUY"
                           else (entry - current_price)) / 0.0001
-            unrealized = round(pip_move * 10 * float(pos.get("lot") or 0), 2)
+            unrealized = round(pip_move * 10 * float(pos.get("lot_size") or 0), 2)
         positions.append({
-            "symbol":         "EURUSD",
+            "symbol":         pos.get("symbol", "EURUSD"),
             "direction":      direction,
             "entry":          entry,
             "current_price":  current_price,
-            "sl":             float(pos.get("sl") or 0),
-            "tp":             float(pos.get("tp") or 0),
-            "lot":            float(pos.get("lot") or 0),
+            "sl":             float(pos.get("stop_loss") or 0),
+            "tp":             float(pos.get("take_profit") or 0),
+            "lot":            float(pos.get("lot_size") or 0),
             "pip_move":       round(pip_move, 1) if pip_move is not None else None,
             "unrealized_pnl": unrealized,
             "opened_at":      str(pos.get("opened_at", "")),
@@ -314,23 +313,21 @@ def api_trades():  # type: ignore[return]
     trades = db.get_all_trades(limit=50)
     out = []
     for t in trades:
-        entry  = float(t.get("entry") or 0)
+        entry  = float(t.get("entry_price") or 0)
         exit_p = float(t.get("exit_price") or 0)
         direction = t.get("direction", "")
-        pip_delta = ((exit_p - entry) if direction == "BUY"
-                     else (entry - exit_p)) / 0.0001 if exit_p else 0
         out.append({
-            "date":      str(t.get("date", "")),
+            "date":      str(t.get("opened_at", ""))[:10],
             "direction": direction,
             "entry":     entry,
             "exit":      exit_p,
-            "sl":        float(t.get("sl") or 0),
-            "tp":        float(t.get("tp") or 0),
-            "lot":       float(t.get("lot") or 0),
-            "sl_pips":   float(t.get("sl_pips") or 0),
-            "pips":      round(pip_delta, 1),
+            "sl":        float(t.get("stop_loss") or 0),
+            "tp":        float(t.get("take_profit") or 0),
+            "lot":       float(t.get("lot_size") or 0),
+            "sl_pips":   0.0,
+            "pips":      round(float(t.get("pips") or 0), 1),
             "pnl":       round(float(t.get("pnl") or 0), 2),
-            "outcome":   t.get("outcome", ""),
+            "outcome":   t.get("result", ""),
             "rsi":       float(t.get("rsi") or 0),
         })
     return jsonify({"trades": out})
@@ -342,12 +339,11 @@ def api_risk():  # type: ignore[return]
     from config import settings
     db = get_db()
     stats   = db.get_stats()
-    balance = float(stats.get("balance", _INITIAL_BAL))
+    balance = float(stats.get("current_balance", _INITIAL_BAL))
 
     today_pnl = sum(
         float(t.get("pnl") or 0)
         for t in db.get_today_trades()
-        if t.get("closed_at")
     )
     daily_loss_pct = max(0.0, -today_pnl / _INITIAL_BAL * 100)
     drawdown_pct   = max(0.0, (_INITIAL_BAL - balance) / _INITIAL_BAL * 100)
@@ -386,8 +382,8 @@ def api_equity():  # type: ignore[return]
         out.append({
             "balance":    float(s.get("balance") or _INITIAL_BAL),
             "daily_pnl":  float(s.get("daily_pnl") or 0),
-            "return_pct": float(s.get("return_pct") or 0),
-            "ts":         str(s.get("created_at", "")),
+            "return_pct": float(s.get("total_return_pct") or 0),
+            "ts":         str(s.get("timestamp", "")),
         })
     return jsonify({"snapshots": out})
 

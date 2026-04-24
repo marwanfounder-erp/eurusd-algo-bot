@@ -59,11 +59,11 @@ def main() -> None:
         if not trades:
             print("  (no closed trades)")
         for t in trades:
-            outcome = t.get("outcome", "?")
-            marker  = "WIN " if outcome == "win" else "LOSS"
-            date_   = str(t.get("date", ""))[:10]
+            result = t.get("result", "?")
+            marker  = "WIN " if result == "win" else "LOSS"
+            date_   = str(t.get("opened_at", ""))[:10]
             dir_    = t.get("direction", "?")
-            entry   = float(t.get("entry") or 0)
+            entry   = float(t.get("entry_price") or 0)
             pnl     = float(t.get("pnl") or 0)
             print(f"  [{marker}] {date_} | {dir_} @ {entry:.5f} | P&L: ${pnl:+.2f}")
     except Exception as exc:
@@ -75,21 +75,17 @@ def main() -> None:
         if not stats:
             print("  (no stats row — will be created on first trade)")
         else:
-            balance = float(stats.get("balance", 10_000))
+            balance = float(stats.get("current_balance", 10_000))
             wins    = int(stats.get("wins", 0))
             losses  = int(stats.get("losses", 0))
-            total   = wins + losses
+            total   = int(stats.get("total_trades", 0))
             wr      = wins / total * 100 if total else 0.0
-            gp      = float(stats.get("gross_profit", 0))
-            gl      = float(stats.get("gross_loss", 0))
+            ret_pct = (balance - 10_000) / 10_000 * 100
             print(f"  Balance       : ${balance:,.2f}")
+            print(f"  Return        : {ret_pct:+.2f}%")
             print(f"  Total trades  : {total}")
             print(f"  Wins / Losses : {wins} / {losses}")
             print(f"  Win rate      : {wr:.1f}%")
-            print(f"  Gross profit  : ${gp:,.2f}")
-            print(f"  Gross loss    : ${gl:,.2f}")
-            pf = gp / gl if gl > 0 else 999.0
-            print(f"  Profit factor : {pf:.2f}")
     except Exception as exc:
         print(f"  ERROR: {exc}")
 
