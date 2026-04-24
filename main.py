@@ -18,6 +18,8 @@ from typing import Any
 import click
 from loguru import logger
 
+import os
+
 from config import settings
 
 # ──────────────────────────────────────────────────────────────────────
@@ -132,6 +134,16 @@ class TradingBot:
         signal.signal(signal.SIGINT,  self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
 
+        # Start dashboard server in background thread
+        from bot.dashboard_server import start_dashboard, update_bot_state
+        self._update_bot_state = update_bot_state
+        update_bot_state(
+            running=False,
+            mode="paper" if self._paper else "live",
+            feed_type=type(self._feed).__name__,
+        )
+        start_dashboard(feed_ref=self._feed)
+
     # ------------------------------------------------------------------
     # Shutdown
     # ------------------------------------------------------------------
@@ -139,6 +151,7 @@ class TradingBot:
     def _shutdown_handler(self, signum: int, frame: Any) -> None:
         logger.warning("Shutdown signal received — closing positions and exiting")
         self._running = False
+        self._update_bot_state(running=False)
         try:
             if not self._paper:
                 self._executor.close_all_positions(settings.symbol)
@@ -222,6 +235,8 @@ class TradingBot:
             logger.debug("No signal this tick")
             return
 
+        self._update_bot_state(last_signal_ts=datetime.now(tz=timezone.utc).isoformat())
+
         # f. Lot size
         entry  = float(trade_signal["entry"])
         sl     = float(trade_signal["stop_loss"])
@@ -295,12 +310,21 @@ class TradingBot:
         self._running = True
         mode = "PAPER" if self._paper else "LIVE"
         feed_name = type(self._feed).__name__
+        port = int(os.environ.get("PORT", 8080))
+        railway_url = os.environ.get("RAILWAY_STATIC_URL") or os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+        if railway_url:
+            dashboard_url = f"https://{railway_url}"
+        else:
+            dashboard_url = f"http://localhost:{port}"
+
         logger.info(
-            "TradingBot starting | mode={} feed={} symbol={}",
-            mode, feed_name, settings.symbol,
+            "TradingBot starting | mode={} feed={} symbol={} dashboard={}",
+            mode, feed_name, settings.symbol, dashboard_url,
         )
+        self._update_bot_state(running=True)
         self._notifier.send(
-            f"<b>Bot started</b> | mode={mode} | feed={feed_name} | symbol={settings.symbol}"
+            f"<b>Bot started</b> | mode={mode} | feed={feed_name} | symbol={settings.symbol}\n"
+            f"Dashboard: {dashboard_url}"
         )
 
         while self._running:

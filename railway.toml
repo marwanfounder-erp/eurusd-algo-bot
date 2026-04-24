@@ -1,14 +1,9 @@
 [build]
 builder = "dockerfile"
-buildCommand = "pip install -r requirements.txt"
 
 [deploy]
 startCommand = "python main.py --paper"
-healthcheckPath = ""
-healthcheckTimeout = 0
+healthcheckPath = "/"
+healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
-
-# No web server — disable health check
-[deploy.healthcheck]
-enabled = false
