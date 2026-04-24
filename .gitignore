@@ -1,0 +1,31 @@
+# ── Secrets / environment ─────────────────────────────────────────────
+.env
+
+# ── Logs & generated output ───────────────────────────────────────────
+logs/*.log
+logs/*.html
+logs/*.json
+
+# Keep the logs/ directory in the repo (Railway mounts a volume there)
+!logs/.gitkeep
+
+# ── Python cache ──────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# ── Virtual environments ──────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Build artefacts ───────────────────────────────────────────────────
+dist/
+build/
+
+# ── Data ──────────────────────────────────────────────────────────────
+data/
