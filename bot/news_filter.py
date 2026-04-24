@@ -151,7 +151,7 @@ class NewsFilter:
         seconds_until, next_event = upcoming[0]
         result = {
             "title": next_event.get("title", "Unknown"),
-            "currency": next_event.get("currency", "?"),
+            "currency": next_event.get("country", next_event.get("currency", "?")),
             "minutes_until": round(seconds_until / 60, 1),
             "event_time_utc": self._parse_event_time(next_event),
         }
