@@ -202,6 +202,31 @@ tbody tr:hover { background: rgba(88,166,255,.04); }
 .news-countdown .mins.warn { color: var(--red); }
 .news-countdown .label { font-size: 10px; color: var(--muted); }
 
+/* ── Stats panel ──────────────────────────────────────────────────────── */
+.stat-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,.5);
+}
+.stat-item:last-child { border-bottom: none; }
+.stat-label { font-size: 12px; color: var(--muted); }
+.stat-value { font-size: 13px; font-weight: 700; }
+
+/* ── Logs panel ──────────────────────────────────────────────────────── */
+.log-panel {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5px; line-height: 1.6;
+  max-height: 320px; overflow-y: auto;
+  background: var(--bg); border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.log-line { display: flex; gap: 10px; padding: 2px 0; }
+.log-ts    { color: var(--muted); flex-shrink: 0; }
+.log-level { width: 58px; flex-shrink: 0; font-weight: 700; }
+.log-level.INFO    { color: var(--text); }
+.log-level.WARNING { color: var(--yellow); }
+.log-level.ERROR   { color: var(--red); }
+.log-msg   { color: var(--text); word-break: break-all; }
+
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .row-4 { grid-template-columns: repeat(2, 1fr); }
@@ -373,30 +398,76 @@ tbody tr:hover { background: rgba(88,166,255,.04); }
     </div>
   </div>
 
-  <!-- Row 4: Trade history -->
+  <!-- Row 4: Stats + Trade history -->
+  <div class="row row-2b">
+
+    <!-- Performance Stats -->
+    <div class="card">
+      <div class="card-title">Performance Statistics</div>
+      <div class="stat-item">
+        <span class="stat-label">Profit Factor</span>
+        <span class="stat-value" id="stat-pf">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Avg Win Pips</span>
+        <span class="stat-value green" id="stat-avg-win">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Avg Loss Pips</span>
+        <span class="stat-value red" id="stat-avg-loss">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Best Trade</span>
+        <span class="stat-value green" id="stat-best">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Worst Trade</span>
+        <span class="stat-value red" id="stat-worst">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Total P&amp;L</span>
+        <span class="stat-value" id="stat-total-pnl">—</span>
+      </div>
+    </div>
+
+    <!-- Trade history -->
+    <div class="card">
+      <div class="card-title">Trade History (Last 50)</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Dir</th><th>Entry</th><th>Exit</th>
+              <th>Pips</th><th>P&amp;L</th><th>SL pips</th>
+              <th>RSI</th><th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body">
+            <tr><td colspan="9" class="no-data">No trades yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 5: Live Logs -->
   <div class="card">
-    <div class="card-title">Trade History</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th><th>Dir</th><th>Entry</th><th>Exit</th>
-            <th>Pips</th><th>P&amp;L</th><th>SL (pips)</th>
-            <th>RSI</th><th>Result</th>
-          </tr>
-        </thead>
-        <tbody id="trades-body">
-          <tr><td colspan="9" class="no-data">No trades yet</td></tr>
-        </tbody>
-      </table>
+    <div class="card-title" style="margin-bottom:10px">
+      Live Bot Logs
+      <span style="float:right;font-size:10px;color:var(--muted);font-weight:400">
+        refreshes every 10s
+      </span>
+    </div>
+    <div class="log-panel" id="log-panel">
+      <div class="no-data">Loading logs…</div>
     </div>
   </div>
 
 </div><!-- /main -->
 
 <script>
-/* ── v2.1 — cache-busted, error-hardened ────────────────────────────── */
-console.log('[dashboard] script v2.1 loaded', new Date().toISOString());
+/* ── v3.0 — Neon PostgreSQL backend, stats + logs panels ────────────── */
+console.log('[dashboard] script v3.0 loaded', new Date().toISOString());
 
 /* ── Utilities ───────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
@@ -432,10 +503,11 @@ function hideBanner() {
   if (b) b.style.display = 'none';
 }
 
-/* ── Debug helper (Step 1) ───────────────────────────────────────────── */
+/* ── Debug helper ────────────────────────────────────────────────────── */
 async function debugAPI() {
-  const endpoints = ['/api/status', '/api/price', '/api/risk',
-                     '/api/news', '/api/positions', '/api/trades'];
+  const endpoints = ['/api/status', '/api/price', '/api/risk', '/api/news',
+                     '/api/positions', '/api/trades', '/api/equity',
+                     '/api/logs', '/api/stats'];
   console.group('[dashboard] API debug');
   for (const ep of endpoints) {
     try {
@@ -557,29 +629,44 @@ async function safeJson(url) {
 async function fetchAll() {
   _ringTs = Date.now();
   // Fire all independently — one failure never blocks the others
-  const [status, positions, trades, risk, price, news] = await Promise.all([
-    safeJson('/api/status'),
-    safeJson('/api/positions'),
-    safeJson('/api/trades'),
-    safeJson('/api/risk'),
-    safeJson('/api/price'),
-    safeJson('/api/news'),
-  ]);
+  const [status, positions, trades, risk, price, news, equity, stats] =
+    await Promise.all([
+      safeJson('/api/status'),
+      safeJson('/api/positions'),
+      safeJson('/api/trades'),
+      safeJson('/api/risk'),
+      safeJson('/api/price'),
+      safeJson('/api/news'),
+      safeJson('/api/equity'),
+      safeJson('/api/stats'),
+    ]);
 
   let anyError = false;
 
   if (status) {
-    try { renderStatus(status); _equityData = status.equity_curve || []; drawEquity(); }
+    try { renderStatus(status); }
     catch(e) { console.error('[dashboard] renderStatus error:', e); anyError = true; }
   } else { anyError = true; }
 
-  if (Array.isArray(positions)) {
-    try { renderPositions(positions); }
+  // Equity curve — use /api/equity snapshots; fall back to nothing
+  if (equity && Array.isArray(equity.snapshots)) {
+    try {
+      _equityData = equity.snapshots.map(s => ({ balance: s.balance, t: s.ts }));
+      drawEquity();
+    } catch(e) { console.error('[dashboard] equity error:', e); }
+  }
+
+  // positions is now {positions: [...]}
+  const posArr = positions && Array.isArray(positions.positions) ? positions.positions : null;
+  if (posArr !== null) {
+    try { renderPositions(posArr); }
     catch(e) { console.error('[dashboard] renderPositions error:', e); }
   }
 
-  if (Array.isArray(trades)) {
-    try { renderTrades(trades); }
+  // trades is now {trades: [...]}
+  const tradesArr = trades && Array.isArray(trades.trades) ? trades.trades : null;
+  if (tradesArr !== null) {
+    try { renderTrades(tradesArr); }
     catch(e) { console.error('[dashboard] renderTrades error:', e); }
   }
 
@@ -598,6 +685,11 @@ async function fetchAll() {
     catch(e) { console.error('[dashboard] renderNews error:', e); }
   }
 
+  if (stats) {
+    try { renderStats(stats); }
+    catch(e) { console.error('[dashboard] renderStats error:', e); }
+  }
+
   if (anyError) {
     showBanner('⚠ Some data unavailable — check /api/health', '#e3b341');
   } else {
@@ -605,12 +697,20 @@ async function fetchAll() {
   }
 }
 
+/* ── Logs fetch loop (every 10 s) ────────────────────────────────────── */
+async function fetchLogs() {
+  const data = await safeJson('/api/logs');
+  if (data && Array.isArray(data.logs)) {
+    try { renderLogs(data.logs); }
+    catch(e) { console.error('[dashboard] renderLogs error:', e); }
+  }
+}
+
 /* ── Render: Status ──────────────────────────────────────────────────── */
 function renderStatus(d) {
-  // API fields (verified against live /api/status response):
-  // running, mode, feed_type, balance, today_pnl, total_return_pct,
-  // total_trades, win_rate_pct, wins, losses, seconds_to_london,
-  // last_signal_ts, start_ts
+  // API fields (v3): running, mode, feed, balance, today_pnl, today_pnl_pct,
+  // total_return_pct, total_trades, win_rate, wins, losses,
+  // seconds_to_london, last_signal, running_since, status
 
   const running = !!d.running;
   const dot = $('status-dot');
@@ -618,13 +718,14 @@ function renderStatus(d) {
 
   const sub = $('header-sub');
   if (sub) sub.textContent = running
-    ? 'Running since ' + (d.start_ts ? new Date(d.start_ts).toLocaleTimeString() : '—') + ' UTC'
+    ? 'Running since ' + (d.running_since ? new Date(d.running_since).toLocaleTimeString() : '—') + ' UTC'
     : 'Bot stopped';
 
   const mb = $('mode-badge');
   if (mb) {
-    mb.textContent = (d.mode || 'paper').toUpperCase();
-    mb.className = 'badge ' + (d.mode === 'live' ? 'badge-live' : 'badge-paper');
+    const modeText = (d.mode || 'PAPER').toUpperCase();
+    mb.textContent = modeText;
+    mb.className = 'badge ' + (modeText === 'LIVE' ? 'badge-live' : 'badge-paper');
   }
 
   // KPI cards
@@ -633,14 +734,14 @@ function renderStatus(d) {
   const pnl = d.today_pnl != null ? d.today_pnl : 0;
   setKpi('kpi-today-pnl', fmtD(pnl), colour(pnl));
   const todaySub = $('kpi-today-sub');
-  if (todaySub) todaySub.textContent = 'Today ' + fmtP(pnl);
+  if (todaySub) todaySub.textContent = 'Today ' + fmtP(d.today_pnl_pct || 0, 2) + '%';
 
   const ret = d.total_return_pct != null ? d.total_return_pct : 0;
   setKpi('kpi-total-return', fmtP(ret, 2) + '%', colour(ret));
   const tradesSub = $('kpi-trades-sub');
   if (tradesSub) tradesSub.textContent = (d.total_trades || 0) + ' total trades';
 
-  const wr = d.win_rate_pct != null ? d.win_rate_pct : 0;
+  const wr = d.win_rate != null ? d.win_rate : 0;
   setKpi('kpi-winrate', fmt(wr, 1) + '%', wr >= 55 ? 'green' : wr >= 45 ? 'yellow' : 'red');
   const wlSub = $('kpi-wl-sub');
   if (wlSub) wlSub.textContent = (d.wins || 0) + ' W / ' + (d.losses || 0) + ' L';
@@ -649,11 +750,11 @@ function renderStatus(d) {
   const bst = $('bot-status-text');
   if (bst) { bst.textContent = running ? '● Running' : '○ Stopped'; bst.style.color = running ? 'var(--green)' : 'var(--red)'; }
   const bf = $('bot-feed');
-  if (bf) bf.textContent = (d.feed_type || '—') + ' / ' + (d.mode || '—').toUpperCase();
+  if (bf) bf.textContent = (d.feed || '—') + ' / ' + (d.mode || '—').toUpperCase();
   const bls = $('bot-last-signal');
-  if (bls) bls.textContent = d.last_signal_ts ? new Date(d.last_signal_ts).toLocaleTimeString() : 'No signal yet';
+  if (bls) bls.textContent = d.last_signal ? new Date(d.last_signal).toLocaleTimeString() : 'No signal yet';
   const bu = $('bot-uptime');
-  if (bu) bu.textContent = d.start_ts ? new Date(d.start_ts).toLocaleTimeString() : '—';
+  if (bu) bu.textContent = d.running_since ? new Date(d.running_since).toLocaleTimeString() : '—';
 
   _londonSecs = d.seconds_to_london || 0;
 
@@ -715,10 +816,10 @@ function renderTrades(rows) {
 
 /* ── Render: Risk ────────────────────────────────────────────────────── */
 function renderRisk(d) {
-  // API fields: daily_loss_pct, daily_limit_pct, total_dd_pct,
+  // API fields: daily_loss_pct, daily_limit_pct, drawdown_pct,
   //             total_limit_pct, safe_to_trade, balance
   const dailyPct = d.daily_loss_pct  || 0;
-  const ddPct    = d.total_dd_pct    || 0;
+  const ddPct    = d.drawdown_pct    || d.total_dd_pct || 0;
   const dailyLim = d.daily_limit_pct || 4;
   const ddLim    = d.total_limit_pct || 8;
   const dailyFill = Math.min(dailyPct / dailyLim * 100, 100);
@@ -783,12 +884,59 @@ function renderNews(events) {
   }).join('');
 }
 
+/* ── Render: Stats ───────────────────────────────────────────────────── */
+function renderStats(d) {
+  // API fields: profit_factor, avg_win_pips, avg_loss_pips,
+  //             best_trade_pnl, worst_trade_pnl, total_pnl
+  const set = (id, val, cls) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = val;
+    if (cls) el.className = 'stat-value ' + cls;
+  };
+
+  const pf = d.profit_factor != null ? d.profit_factor : 0;
+  set('stat-pf', fmt(pf, 2), pf >= 1.5 ? 'green' : pf >= 1 ? 'yellow' : 'red');
+  set('stat-avg-win',  (d.avg_win_pips  != null ? '+' + fmt(d.avg_win_pips,  1) : '—') + ' pips');
+  set('stat-avg-loss', (d.avg_loss_pips != null ? '' + fmt(d.avg_loss_pips, 1) : '—') + ' pips');
+  set('stat-best',  fmtD(d.best_trade_pnl),  'green');
+  set('stat-worst', fmtD(d.worst_trade_pnl), 'red');
+  const tpnl = d.total_pnl != null ? d.total_pnl : 0;
+  set('stat-total-pnl', fmtD(tpnl), colour(tpnl));
+}
+
+/* ── Render: Logs ────────────────────────────────────────────────────── */
+function renderLogs(logs) {
+  // API fields (each): level, message, ts
+  const panel = $('log-panel');
+  if (!panel) return;
+  if (!logs || !logs.length) {
+    panel.innerHTML = '<div class="no-data">No logs yet.</div>';
+    return;
+  }
+  // Show newest first, max 20 lines
+  const lines = logs.slice(0, 20);
+  panel.innerHTML = lines.map(l => {
+    const level = (l.level || 'INFO').toUpperCase();
+    const ts    = l.ts ? l.ts.substring(11, 19) : '';   // HH:MM:SS from ISO
+    const msg   = (l.message || '').substring(0, 120);
+    return `<div class="log-line">
+      <span class="log-ts">${ts}</span>
+      <span class="log-level ${level}">${level}</span>
+      <span class="log-msg">${msg}</span>
+    </div>`;
+  }).join('');
+}
+
 /* ── Boot ────────────────────────────────────────────────────────────── */
 // Run debug immediately so we can see API responses in console
 debugAPI();
 // First fetch right away, then every 5 s
 fetchAll();
 setInterval(fetchAll, REFRESH_MS);
+// Logs refresh every 10 s
+fetchLogs();
+setInterval(fetchLogs, 10000);
 </script>
 </body>
 </html>

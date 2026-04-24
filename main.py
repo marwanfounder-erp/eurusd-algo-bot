@@ -132,6 +132,9 @@ class TradingBot:
         self._news = NewsFilter()
         self._notifier = TelegramNotifier()
 
+        from bot.database import get_db
+        self._db = get_db()
+
         signal.signal(signal.SIGINT,  self._shutdown_handler)
         signal.signal(signal.SIGTERM, self._shutdown_handler)
 
@@ -160,6 +163,7 @@ class TradingBot:
         except Exception as exc:
             logger.error("Error closing positions on shutdown: {}", exc)
         finally:
+            self._db.log("INFO", "Bot stopped")
             self._feed.shutdown()
             sys.exit(0)
 
@@ -230,15 +234,28 @@ class TradingBot:
                 logger.debug("Position already open ({}) — skipping signal", len(open_pos))
                 return
 
-        # e. Get signal
+        # e. Hourly snapshot (paper feed only)
+        if self._is_paper_feed:
+            from bot.paper_feed import PaperFeed
+            assert isinstance(self._feed, PaperFeed)
+            self._feed.maybe_save_snapshot()
+
+        # f. Get signal
         trade_signal = self._strategy.get_signal(settings.symbol)
         if trade_signal["direction"] == "NONE":
             logger.debug("No signal this tick")
             return
 
-        self._update_bot_state(last_signal_ts=datetime.now(tz=timezone.utc).isoformat())
+        now_ts = datetime.now(tz=timezone.utc).isoformat()
+        self._update_bot_state(last_signal_ts=now_ts)
+        self._db.log(
+            "INFO",
+            f"Signal: {trade_signal['direction']} | entry={trade_signal.get('entry')} "
+            f"sl={trade_signal.get('stop_loss')} tp={trade_signal.get('take_profit')} "
+            f"rsi={trade_signal.get('rsi', 'n/a')}"
+        )
 
-        # f. Lot size
+        # g. Lot size
         entry  = float(trade_signal["entry"])
         sl     = float(trade_signal["stop_loss"])
         pip    = 0.01 if settings.symbol.upper().endswith("JPY") else 0.0001
@@ -249,7 +266,7 @@ class TradingBot:
             else round(min(settings.risk_per_trade * 10, settings.max_lot_size), 2)
         )
 
-        # g. Paper mode — simulate and notify
+        # h. Paper mode — simulate and notify
         if self._paper:
             direction = str(trade_signal["direction"])
             tp = float(trade_signal["take_profit"])
@@ -264,6 +281,7 @@ class TradingBot:
                     tp=tp,
                     lot=lot,
                     sl_pips=sl_pips,
+                    rsi=float(trade_signal.get("rsi", 0)),
                 )
                 summary = self._feed.account_summary()
             else:
@@ -282,12 +300,17 @@ class TradingBot:
                 direction, lot, entry, sl, tp,
             )
             self._notifier.send(msg)
+            self._db.log(
+                "INFO",
+                f"PAPER TRADE opened: {direction} {lot:.2f}lots @ {entry:.5f} "
+                f"sl={sl:.5f} tp={tp:.5f}"
+            )
 
             self._daily_stats["total_trades"] += 1
             self._daily_stats["net_pnl"] += 0.0  # resolved when position closes
             return
 
-        # h. Live execution
+        # i. Live execution
         try:
             result = self._executor.place_order(
                 symbol=settings.symbol,
@@ -299,9 +322,11 @@ class TradingBot:
             self._daily_stats["total_trades"] += 1
             self._notifier.send_trade_alert(trade_signal, lot)  # type: ignore[arg-type]
             logger.info("Trade executed | result={}", result)
+            self._db.log("INFO", f"LIVE TRADE executed: {result}")
         except Exception as exc:
             logger.error("Order execution failed: {}", exc)
             self._notifier.send_error(exc)
+            self._db.log("ERROR", f"Order execution failed: {exc}")
 
     # ------------------------------------------------------------------
     # Run
@@ -323,6 +348,7 @@ class TradingBot:
             mode, feed_name, settings.symbol, dashboard_url,
         )
         self._update_bot_state(running=True)
+        self._db.log("INFO", f"Bot started — mode={mode} feed={feed_name} symbol={settings.symbol}")
         self._notifier.send(
             f"<b>Bot started</b> | mode={mode} | feed={feed_name} | symbol={settings.symbol}\n"
             f"Dashboard: {dashboard_url}"
@@ -335,6 +361,7 @@ class TradingBot:
             except Exception as exc:
                 logger.exception("Unhandled error in tick: {}", exc)
                 self._notifier.send_error(exc)
+                self._db.log("ERROR", f"Unhandled tick error: {exc}")
 
             elapsed  = time.monotonic() - start
             sleep_for = max(0.0, self._LOOP_INTERVAL - elapsed)

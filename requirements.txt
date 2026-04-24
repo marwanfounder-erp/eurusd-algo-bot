@@ -27,6 +27,9 @@ python-telegram-bot==20.7
 flask==3.0.3
 flask-cors==4.0.1
 
+# Database
+psycopg2-binary==2.9.12
+
 # Backtesting / reporting
 plotly==5.22.0
 
