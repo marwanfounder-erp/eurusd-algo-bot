@@ -292,7 +292,12 @@ _logging.getLogger("werkzeug").setLevel(_logging.ERROR)
 
 @app.route("/")
 def index():  # type: ignore[return]
-    return send_from_directory(str(_DASHBOARD_DIR), "dashboard.html")
+    from flask import make_response
+    resp = make_response(send_from_directory(str(_DASHBOARD_DIR), "dashboard.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/api/health")

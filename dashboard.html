@@ -395,27 +395,69 @@ tbody tr:hover { background: rgba(88,166,255,.04); }
 </div><!-- /main -->
 
 <script>
+/* ── v2.1 — cache-busted, error-hardened ────────────────────────────── */
+console.log('[dashboard] script v2.1 loaded', new Date().toISOString());
+
 /* ── Utilities ───────────────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
-const fmt  = (n, d=2) => (n == null ? '—' : Number(n).toFixed(d));
-const fmtP = (n, d=1) => (n == null ? '—' : (n >= 0 ? '+' : '') + Number(n).toFixed(d));
+const fmt  = (n, dp=2) => (n == null ? '—' : Number(n).toFixed(dp));
+const fmtP = (n, dp=1) => (n == null ? '—' : (n >= 0 ? '+' : '') + Number(n).toFixed(dp));
 const fmtD = n => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 const colour = n => n == null ? '' : n >= 0 ? 'green' : 'red';
 
 function setKpi(id, val, cls) {
-  const el = $(id); if (!el) return;
+  const el = $(id);
+  if (!el) { console.warn('[dashboard] missing element:', id); return; }
   el.textContent = val;
   el.className = 'kpi-value ' + (cls || '');
 }
 
+/* ── Error banner ────────────────────────────────────────────────────── */
+function showBanner(msg, colour) {
+  let b = $('err-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'err-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:8px 20px;'
+      + 'font-size:13px;font-family:monospace;display:flex;gap:12px;align-items:center;';
+    document.body.prepend(b);
+  }
+  b.style.background = colour || '#f85149';
+  b.style.color = '#fff';
+  b.textContent = msg;
+  b.style.display = 'flex';
+}
+function hideBanner() {
+  const b = $('err-banner');
+  if (b) b.style.display = 'none';
+}
+
+/* ── Debug helper (Step 1) ───────────────────────────────────────────── */
+async function debugAPI() {
+  const endpoints = ['/api/status', '/api/price', '/api/risk',
+                     '/api/news', '/api/positions', '/api/trades'];
+  console.group('[dashboard] API debug');
+  for (const ep of endpoints) {
+    try {
+      const r = await fetch(ep + '?_=' + Date.now());
+      const text = await r.text();
+      console.log(ep, r.status, text.substring(0, 300));
+    } catch(e) {
+      console.error(ep, 'FAILED:', e.message);
+      showBanner('API Error: ' + ep + ' failed — ' + e.message);
+    }
+  }
+  console.groupEnd();
+}
+
 /* ── Refresh ring ────────────────────────────────────────────────────── */
 const REFRESH_MS = 5000;
-const CIRC = 2 * Math.PI * 12;   // 75.4
+const CIRC = 2 * Math.PI * 12;
 let _ringTs = Date.now();
 function tickRing() {
   const prog = $('refresh-prog');
-  const elapsed = Date.now() - _ringTs;
-  const pct = Math.min(elapsed / REFRESH_MS, 1);
+  if (!prog) return;
+  const pct = Math.min((Date.now() - _ringTs) / REFRESH_MS, 1);
   prog.style.strokeDashoffset = CIRC * (1 - pct);
   requestAnimationFrame(tickRing);
 }
@@ -423,122 +465,98 @@ requestAnimationFrame(tickRing);
 
 /* ── London countdown ────────────────────────────────────────────────── */
 let _londonSecs = 0;
-function tickLondon() {
+setInterval(() => {
   if (_londonSecs > 0) _londonSecs--;
+  const el = $('london-countdown');
+  if (!el) return;
   const h = String(Math.floor(_londonSecs / 3600)).padStart(2,'0');
   const m = String(Math.floor(_londonSecs % 3600 / 60)).padStart(2,'0');
   const s = String(_londonSecs % 60).padStart(2,'0');
-  $('london-countdown').textContent = `${h}:${m}:${s}`;
-}
-setInterval(tickLondon, 1000);
+  el.textContent = `${h}:${m}:${s}`;
+}, 1000);
 
 /* ── News countdown ──────────────────────────────────────────────────── */
 let _newsData = [];
-function renderNewsCountdowns() {
+setInterval(() => {
   _newsData.forEach((ev, i) => {
-    const el = document.getElementById('news-mins-' + i);
+    const el = $('news-mins-' + i);
     if (el) {
       const mins = Math.max(0, ev._mins - (Date.now() - ev._fetchTs) / 60000);
       el.textContent = mins < 60 ? fmt(mins,1) + 'm' : fmt(mins/60,1) + 'h';
     }
   });
-}
-setInterval(renderNewsCountdowns, 10000);
+}, 10000);
 
-/* ── Equity canvas chart ─────────────────────────────────────────────── */
+/* ── Equity canvas ───────────────────────────────────────────────────── */
 let _equityData = [];
 function drawEquity() {
-  const canvas = $('equity-canvas');
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.offsetWidth, H = canvas.offsetHeight;
-  if (!W || !H) return;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const pts = _equityData;
-  if (pts.length < 2) {
-    ctx.fillStyle = 'rgba(139,148,158,.5)';
-    ctx.font = '13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No trade data yet', W/2, H/2);
-    return;
-  }
-
-  const pad = {top:14, right:10, bottom:28, left:68};
-  const cw = W - pad.left - pad.right;
-  const ch = H - pad.top  - pad.bottom;
-
-  const values = pts.map(p => p.balance);
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const rangeV = maxV - minV || 1;
-
-  const xOf = i => pad.left + (i / (pts.length - 1)) * cw;
-  const yOf = v => pad.top  + (1 - (v - minV) / rangeV) * ch;
-
-  /* grid */
-  ctx.strokeStyle = 'rgba(48,54,61,.8)';
-  ctx.lineWidth = 1;
-  for (let g = 0; g <= 4; g++) {
-    const y = pad.top + ch * g / 4;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y);
+  try {
+    const canvas = $('equity-canvas');
+    if (!canvas) return;
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    if (!W || !H) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const pts = _equityData;
+    if (pts.length < 2) {
+      ctx.fillStyle = 'rgba(139,148,158,.5)';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No trade data yet', W/2, H/2);
+      return;
+    }
+    const pad = {top:14, right:10, bottom:28, left:68};
+    const cw = W - pad.left - pad.right, ch = H - pad.top - pad.bottom;
+    const vals = pts.map(p => p.balance);
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const rng = maxV - minV || 1;
+    const xOf = i => pad.left + (i / (pts.length - 1)) * cw;
+    const yOf = v => pad.top  + (1 - (v - minV) / rng) * ch;
+    ctx.strokeStyle = 'rgba(48,54,61,.8)'; ctx.lineWidth = 1;
+    for (let g = 0; g <= 4; g++) {
+      const y = pad.top + ch * g / 4;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(139,148,158,.7)'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+      ctx.fillText('$' + Math.round(maxV - rng * g / 4).toLocaleString(), pad.left - 6, y + 4);
+    }
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+    grad.addColorStop(0, 'rgba(88,166,255,.25)'); grad.addColorStop(1, 'rgba(88,166,255,.02)');
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), yOf(pts[0].balance));
+    pts.forEach((p, i) => ctx.lineTo(xOf(i), yOf(p.balance)));
+    ctx.lineTo(xOf(pts.length-1), pad.top + ch); ctx.lineTo(xOf(0), pad.top + ch);
+    ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    pts.forEach((p, i) => i === 0 ? ctx.moveTo(xOf(i), yOf(p.balance)) : ctx.lineTo(xOf(i), yOf(p.balance)));
     ctx.stroke();
-    const val = maxV - rangeV * g / 4;
-    ctx.fillStyle = 'rgba(139,148,158,.7)';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('$' + Math.round(val).toLocaleString(), pad.left - 6, y + 4);
+    const lx = xOf(pts.length-1), ly = yOf(pts[pts.length-1].balance);
+    ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI*2); ctx.fillStyle = '#58a6ff'; ctx.fill();
+  } catch(e) {
+    console.error('[dashboard] drawEquity error:', e);
   }
-
-  /* area fill */
-  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
-  grad.addColorStop(0,   'rgba(88,166,255,.25)');
-  grad.addColorStop(1,   'rgba(88,166,255,.02)');
-  ctx.beginPath();
-  ctx.moveTo(xOf(0), yOf(pts[0].balance));
-  pts.forEach((p, i) => ctx.lineTo(xOf(i), yOf(p.balance)));
-  ctx.lineTo(xOf(pts.length-1), pad.top + ch);
-  ctx.lineTo(xOf(0),            pad.top + ch);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  /* line */
-  ctx.beginPath();
-  ctx.strokeStyle = '#58a6ff';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  pts.forEach((p, i) => i === 0
-    ? ctx.moveTo(xOf(i), yOf(p.balance))
-    : ctx.lineTo(xOf(i), yOf(p.balance)));
-  ctx.stroke();
-
-  /* current value dot */
-  const lastX = xOf(pts.length-1), lastY = yOf(pts[pts.length-1].balance);
-  ctx.beginPath();
-  ctx.arc(lastX, lastY, 4, 0, Math.PI*2);
-  ctx.fillStyle = '#58a6ff';
-  ctx.fill();
 }
 window.addEventListener('resize', drawEquity);
 
-/* ── API fetchers ────────────────────────────────────────────────────── */
-// Use allSettled so one slow/failing endpoint never blocks the rest
+/* ── Fetch helpers ───────────────────────────────────────────────────── */
 async function safeJson(url) {
   try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    // Cache-bust so browser never serves stale HTML/API responses
+    const r = await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     return await r.json();
   } catch(e) {
-    console.warn(`fetch ${url} failed:`, e.message);
+    console.warn('[dashboard] fetch failed:', url, e.message);
     return null;
   }
 }
 
+/* ── Main fetch loop ─────────────────────────────────────────────────── */
 async function fetchAll() {
   _ringTs = Date.now();
+  // Fire all independently — one failure never blocks the others
   const [status, positions, trades, risk, price, news] = await Promise.all([
     safeJson('/api/status'),
     safeJson('/api/positions'),
@@ -547,171 +565,213 @@ async function fetchAll() {
     safeJson('/api/price'),
     safeJson('/api/news'),
   ]);
-  if (status)    { renderStatus(status); _equityData = status.equity_curve || []; drawEquity(); }
-  if (positions) renderPositions(positions);
-  if (trades)    renderTrades(trades);
-  if (risk)      renderRisk(risk);
-  if (price)     renderPrice(price);
-  if (news)      renderNews(news);
+
+  let anyError = false;
+
+  if (status) {
+    try { renderStatus(status); _equityData = status.equity_curve || []; drawEquity(); }
+    catch(e) { console.error('[dashboard] renderStatus error:', e); anyError = true; }
+  } else { anyError = true; }
+
+  if (Array.isArray(positions)) {
+    try { renderPositions(positions); }
+    catch(e) { console.error('[dashboard] renderPositions error:', e); }
+  }
+
+  if (Array.isArray(trades)) {
+    try { renderTrades(trades); }
+    catch(e) { console.error('[dashboard] renderTrades error:', e); }
+  }
+
+  if (risk) {
+    try { renderRisk(risk); }
+    catch(e) { console.error('[dashboard] renderRisk error:', e); }
+  }
+
+  if (price) {
+    try { renderPrice(price); }
+    catch(e) { console.error('[dashboard] renderPrice error:', e); }
+  }
+
+  if (Array.isArray(news)) {
+    try { renderNews(news); }
+    catch(e) { console.error('[dashboard] renderNews error:', e); }
+  }
+
+  if (anyError) {
+    showBanner('⚠ Some data unavailable — check /api/health', '#e3b341');
+  } else {
+    hideBanner();
+  }
 }
 
-/* ── Render functions ────────────────────────────────────────────────── */
+/* ── Render: Status ──────────────────────────────────────────────────── */
 function renderStatus(d) {
-  // Running dot
-  const dot  = $('status-dot');
-  const running = d.running;
-  dot.className = 'status-dot' + (running ? ' running' : '');
+  // API fields (verified against live /api/status response):
+  // running, mode, feed_type, balance, today_pnl, total_return_pct,
+  // total_trades, win_rate_pct, wins, losses, seconds_to_london,
+  // last_signal_ts, start_ts
 
-  // Header sub
-  $('header-sub').textContent = running
-    ? `Running since ${d.start_ts ? new Date(d.start_ts).toLocaleTimeString() : '—'} UTC`
+  const running = !!d.running;
+  const dot = $('status-dot');
+  if (dot) dot.className = 'status-dot' + (running ? ' running' : '');
+
+  const sub = $('header-sub');
+  if (sub) sub.textContent = running
+    ? 'Running since ' + (d.start_ts ? new Date(d.start_ts).toLocaleTimeString() : '—') + ' UTC'
     : 'Bot stopped';
 
-  // Mode badge
   const mb = $('mode-badge');
-  mb.textContent = (d.mode || 'paper').toUpperCase();
-  mb.className = 'badge ' + (d.mode === 'live' ? 'badge-live' : 'badge-paper');
+  if (mb) {
+    mb.textContent = (d.mode || 'paper').toUpperCase();
+    mb.className = 'badge ' + (d.mode === 'live' ? 'badge-live' : 'badge-paper');
+  }
 
-  // KPIs
+  // KPI cards
   setKpi('kpi-balance', fmtD(d.balance), 'blue');
-  const pnl = d.today_pnl;
+
+  const pnl = d.today_pnl != null ? d.today_pnl : 0;
   setKpi('kpi-today-pnl', fmtD(pnl), colour(pnl));
-  $('kpi-today-sub').textContent = 'Today ' + fmtP(pnl);
+  const todaySub = $('kpi-today-sub');
+  if (todaySub) todaySub.textContent = 'Today ' + fmtP(pnl);
 
-  const ret = d.total_return_pct;
-  setKpi('kpi-total-return', fmtP(ret,2) + '%', colour(ret));
-  $('kpi-trades-sub').textContent = d.total_trades + ' total trades';
+  const ret = d.total_return_pct != null ? d.total_return_pct : 0;
+  setKpi('kpi-total-return', fmtP(ret, 2) + '%', colour(ret));
+  const tradesSub = $('kpi-trades-sub');
+  if (tradesSub) tradesSub.textContent = (d.total_trades || 0) + ' total trades';
 
-  setKpi('kpi-winrate', fmt(d.win_rate_pct,1) + '%',
-    d.win_rate_pct >= 55 ? 'green' : d.win_rate_pct >= 45 ? 'yellow' : 'red');
-  $('kpi-wl-sub').textContent = `${d.wins} W / ${d.losses} L`;
+  const wr = d.win_rate_pct != null ? d.win_rate_pct : 0;
+  setKpi('kpi-winrate', fmt(wr, 1) + '%', wr >= 55 ? 'green' : wr >= 45 ? 'yellow' : 'red');
+  const wlSub = $('kpi-wl-sub');
+  if (wlSub) wlSub.textContent = (d.wins || 0) + ' W / ' + (d.losses || 0) + ' L';
 
-  // Bot status
-  $('bot-status-text').textContent = running ? '● Running' : '○ Stopped';
-  $('bot-status-text').style.color = running ? 'var(--green)' : 'var(--red)';
-  $('bot-feed').textContent  = (d.feed_type || '—') + ' / ' + (d.mode || '—').toUpperCase();
-  $('bot-last-signal').textContent = d.last_signal_ts
-    ? new Date(d.last_signal_ts).toLocaleTimeString()
-    : 'No signal yet';
-  $('bot-uptime').textContent = d.start_ts
-    ? new Date(d.start_ts).toLocaleTimeString()
-    : '—';
+  // Bot status panel
+  const bst = $('bot-status-text');
+  if (bst) { bst.textContent = running ? '● Running' : '○ Stopped'; bst.style.color = running ? 'var(--green)' : 'var(--red)'; }
+  const bf = $('bot-feed');
+  if (bf) bf.textContent = (d.feed_type || '—') + ' / ' + (d.mode || '—').toUpperCase();
+  const bls = $('bot-last-signal');
+  if (bls) bls.textContent = d.last_signal_ts ? new Date(d.last_signal_ts).toLocaleTimeString() : 'No signal yet';
+  const bu = $('bot-uptime');
+  if (bu) bu.textContent = d.start_ts ? new Date(d.start_ts).toLocaleTimeString() : '—';
 
-  // London countdown sync
   _londonSecs = d.seconds_to_london || 0;
+
+  console.log('[dashboard] status OK | balance=' + d.balance + ' running=' + running);
 }
 
+/* ── Render: Positions ───────────────────────────────────────────────── */
 function renderPositions(rows) {
+  // API returns array of: {symbol, direction, entry, current_price, sl, tp,
+  //                        lot, pip_move, unrealized_pnl, opened_at}
   const tbody = $('positions-body');
+  if (!tbody) return;
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="no-data">No open positions</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r => {
     const dirCol = r.direction === 'BUY' ? 'green' : 'red';
-    const pnlCol = colour(r.unrealized_pnl);
     return `<tr>
-      <td><span class="${dirCol}" style="font-weight:700">${r.direction}</span></td>
-      <td><code>${fmt(r.entry,5)}</code></td>
-      <td><code>${r.current_price ? fmt(r.current_price,5) : '—'}</code></td>
-      <td class="${colour(r.pip_move)}">${fmtP(r.pip_move,1)}</td>
-      <td class="${pnlCol}" style="font-weight:600">${fmtD(r.unrealized_pnl)}</td>
-      <td><code>${fmt(r.sl,5)}</code></td>
-      <td><code>${fmt(r.tp,5)}</code></td>
+      <td><span class="${dirCol}" style="font-weight:700">${r.direction || '—'}</span></td>
+      <td><code>${fmt(r.entry, 5)}</code></td>
+      <td><code>${r.current_price != null ? fmt(r.current_price, 5) : '—'}</code></td>
+      <td class="${colour(r.pip_move)}">${fmtP(r.pip_move, 1)}</td>
+      <td class="${colour(r.unrealized_pnl)}" style="font-weight:600">${fmtD(r.unrealized_pnl)}</td>
+      <td><code>${fmt(r.sl, 5)}</code></td>
+      <td><code>${fmt(r.tp, 5)}</code></td>
     </tr>`;
   }).join('');
 }
 
+/* ── Render: Trades ──────────────────────────────────────────────────── */
 function renderTrades(rows) {
+  // API returns array of: {date, direction, entry, exit, sl, tp, lot,
+  //                        sl_pips, pips, pnl, outcome, rsi}
   const tbody = $('trades-body');
+  if (!tbody) return;
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="no-data">No trades yet</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r => {
-    const dirCol   = r.direction === 'BUY' ? 'green' : 'red';
-    const pipsCol  = colour(r.pips);
-    const pnlCol   = colour(r.pnl);
-    const badge    = r.outcome === 'win'
+    const dirCol = r.direction === 'BUY' ? 'green' : 'red';
+    const badge  = r.outcome === 'win'
       ? '<span class="badge badge-win">WIN</span>'
       : '<span class="badge badge-loss">LOSS</span>';
     return `<tr>
-      <td style="color:var(--muted)">${r.date}</td>
-      <td><span class="${dirCol}" style="font-weight:700">${r.direction}</span></td>
-      <td><code>${fmt(r.entry,5)}</code></td>
-      <td><code>${fmt(r.exit,5)}</code></td>
-      <td class="${pipsCol}" style="font-weight:600">${fmtP(r.pips,1)}</td>
-      <td class="${pnlCol}" style="font-weight:600">${fmtD(r.pnl)}</td>
-      <td style="color:var(--muted)">${fmt(r.sl_pips,1)}</td>
-      <td style="color:var(--muted)">${fmt(r.rsi,1)}</td>
+      <td style="color:var(--muted)">${r.date || '—'}</td>
+      <td><span class="${dirCol}" style="font-weight:700">${r.direction || '—'}</span></td>
+      <td><code>${fmt(r.entry, 5)}</code></td>
+      <td><code>${fmt(r.exit, 5)}</code></td>
+      <td class="${colour(r.pips)}" style="font-weight:600">${fmtP(r.pips, 1)}</td>
+      <td class="${colour(r.pnl)}" style="font-weight:600">${fmtD(r.pnl)}</td>
+      <td style="color:var(--muted)">${fmt(r.sl_pips, 1)}</td>
+      <td style="color:var(--muted)">${fmt(r.rsi, 1)}</td>
       <td>${badge}</td>
     </tr>`;
   }).join('');
 }
 
+/* ── Render: Risk ────────────────────────────────────────────────────── */
 function renderRisk(d) {
-  const dailyPct = d.daily_loss_pct || 0;
-  const ddPct    = d.total_dd_pct || 0;
+  // API fields: daily_loss_pct, daily_limit_pct, total_dd_pct,
+  //             total_limit_pct, safe_to_trade, balance
+  const dailyPct = d.daily_loss_pct  || 0;
+  const ddPct    = d.total_dd_pct    || 0;
   const dailyLim = d.daily_limit_pct || 4;
   const ddLim    = d.total_limit_pct || 8;
-
   const dailyFill = Math.min(dailyPct / dailyLim * 100, 100);
   const ddFill    = Math.min(ddPct    / ddLim    * 100, 100);
 
-  $('risk-daily-val').textContent = fmt(dailyPct,2) + '% / ' + fmt(dailyLim,0) + '%';
-  $('risk-dd-val').textContent    = fmt(ddPct,2)    + '% / ' + fmt(ddLim,0)    + '%';
+  const dv = $('risk-daily-val');
+  if (dv) dv.textContent = fmt(dailyPct,2) + '% / ' + fmt(dailyLim,0) + '%';
+  const ddv = $('risk-dd-val');
+  if (ddv) ddv.textContent = fmt(ddPct,2) + '% / ' + fmt(ddLim,0) + '%';
 
-  const dailyBar = $('risk-daily-bar');
-  dailyBar.style.width = dailyFill + '%';
-  dailyBar.style.background = dailyFill > 80 ? 'var(--red)' : dailyFill > 60 ? 'var(--yellow)' : 'var(--green)';
-
-  const ddBar = $('risk-dd-bar');
-  ddBar.style.width = ddFill + '%';
-  ddBar.style.background = ddFill > 80 ? 'var(--red)' : ddFill > 60 ? 'var(--yellow)' : 'var(--green)';
+  const db = $('risk-daily-bar');
+  if (db) { db.style.width = dailyFill + '%'; db.style.background = dailyFill > 80 ? 'var(--red)' : dailyFill > 60 ? 'var(--yellow)' : 'var(--green)'; }
+  const ddb = $('risk-dd-bar');
+  if (ddb) { ddb.style.width = ddFill + '%'; ddb.style.background = ddFill > 80 ? 'var(--red)' : ddFill > 60 ? 'var(--yellow)' : 'var(--green)'; }
 
   const ind = $('safe-indicator');
-  if (d.safe_to_trade) {
-    ind.className = 'safe-indicator safe';
-    $('safe-text').textContent = 'Safe to Trade';
-    $('safe-sub').textContent  = 'All limits within bounds';
-  } else {
-    ind.className = 'safe-indicator unsafe';
-    $('safe-text').textContent = 'Trading Paused';
-    $('safe-sub').textContent  = 'Risk limit reached';
-  }
+  if (ind) ind.className = 'safe-indicator ' + (d.safe_to_trade ? 'safe' : 'unsafe');
+  const st = $('safe-text');
+  if (st) st.textContent = d.safe_to_trade ? 'Safe to Trade' : 'Trading Paused';
+  const ss = $('safe-sub');
+  if (ss) ss.textContent = d.safe_to_trade ? 'All limits within bounds' : 'Risk limit reached';
 }
 
+/* ── Render: Price ───────────────────────────────────────────────────── */
 function renderPrice(d) {
-  $('price-bid').textContent    = d.bid    ? d.bid.toFixed(5) : '—';
-  $('price-ask').textContent    = d.ask    ? d.ask.toFixed(5) : '—';
-  $('price-spread').textContent = d.spread_pips != null ? d.spread_pips + 'p' : '—';
+  // API fields: bid, ask, spread_pips, source, ts
+  const bid = $('price-bid');
+  const ask = $('price-ask');
+  const spr = $('price-spread');
+  if (bid) bid.textContent = d.bid != null ? Number(d.bid).toFixed(5) : '—';
+  if (ask) ask.textContent = d.ask != null ? Number(d.ask).toFixed(5) : '—';
+  if (spr) spr.textContent = d.spread_pips != null ? d.spread_pips + 'p' : '—';
 }
 
+/* ── Render: News ────────────────────────────────────────────────────── */
 function renderNews(events) {
+  // API returns array of: {title, currency, impact, event_time, minutes_until, warning}
   const list = $('news-list');
+  if (!list) return;
   if (!events.length) {
     list.innerHTML = '<div class="no-data">No upcoming high-impact events this week.</div>';
     return;
   }
-  _newsData = events.map(ev => ({
-    ...ev,
-    _mins: ev.minutes_until,
-    _fetchTs: Date.now(),
-  }));
+  _newsData = events.map(ev => ({...ev, _mins: ev.minutes_until, _fetchTs: Date.now()}));
   list.innerHTML = events.map((ev, i) => {
     const warn = ev.warning;
     const mins = ev.minutes_until;
-    const display = mins < 60
-      ? fmt(mins,1) + 'm'
-      : fmt(mins/60,1) + 'h';
-    const dt = ev.event_time
-      ? new Date(ev.event_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
-      : '';
-    return `
-    <div class="news-item${warn ? ' warning' : ''}">
-      <div class="news-currency">${ev.currency}</div>
+    const display = mins < 60 ? fmt(mins,1) + 'm' : fmt(mins/60,1) + 'h';
+    const dt = ev.event_time ? new Date(ev.event_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="news-item${warn ? ' warning' : ''}">
+      <div class="news-currency">${ev.currency || '?'}</div>
       <div style="flex:1;min-width:0">
-        <div class="news-title">${ev.title}</div>
+        <div class="news-title">${ev.title || 'Unknown'}</div>
         <div class="news-meta">${ev.currency} · High Impact · ${dt} UTC</div>
         ${warn ? '<div style="font-size:11px;color:var(--red);margin-top:3px;font-weight:600">⚠ Trading blocked</div>' : ''}
       </div>
@@ -724,6 +784,9 @@ function renderNews(events) {
 }
 
 /* ── Boot ────────────────────────────────────────────────────────────── */
+// Run debug immediately so we can see API responses in console
+debugAPI();
+// First fetch right away, then every 5 s
 fetchAll();
 setInterval(fetchAll, REFRESH_MS);
 </script>
