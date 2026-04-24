@@ -525,28 +525,34 @@ function drawEquity() {
 window.addEventListener('resize', drawEquity);
 
 /* ── API fetchers ────────────────────────────────────────────────────── */
+// Use allSettled so one slow/failing endpoint never blocks the rest
+async function safeJson(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch(e) {
+    console.warn(`fetch ${url} failed:`, e.message);
+    return null;
+  }
+}
+
 async function fetchAll() {
   _ringTs = Date.now();
-  try {
-    const [status, positions, trades, risk, price, news] = await Promise.all([
-      fetch('/api/status').then(r=>r.json()),
-      fetch('/api/positions').then(r=>r.json()),
-      fetch('/api/trades').then(r=>r.json()),
-      fetch('/api/risk').then(r=>r.json()),
-      fetch('/api/price').then(r=>r.json()),
-      fetch('/api/news').then(r=>r.json()),
-    ]);
-    renderStatus(status);
-    renderPositions(positions);
-    renderTrades(trades);
-    renderRisk(risk);
-    renderPrice(price);
-    renderNews(news);
-    _equityData = status.equity_curve || [];
-    drawEquity();
-  } catch(e) {
-    console.warn('Dashboard fetch error:', e);
-  }
+  const [status, positions, trades, risk, price, news] = await Promise.all([
+    safeJson('/api/status'),
+    safeJson('/api/positions'),
+    safeJson('/api/trades'),
+    safeJson('/api/risk'),
+    safeJson('/api/price'),
+    safeJson('/api/news'),
+  ]);
+  if (status)    { renderStatus(status); _equityData = status.equity_curve || []; drawEquity(); }
+  if (positions) renderPositions(positions);
+  if (trades)    renderTrades(trades);
+  if (risk)      renderRisk(risk);
+  if (price)     renderPrice(price);
+  if (news)      renderNews(news);
 }
 
 /* ── Render functions ────────────────────────────────────────────────── */

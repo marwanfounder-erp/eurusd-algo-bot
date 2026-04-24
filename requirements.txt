@@ -25,6 +25,7 @@ pydantic-settings==2.3.4
 requests==2.32.3
 python-telegram-bot==20.7
 flask==3.0.3
+flask-cors==4.0.1
 
 # Backtesting / reporting
 plotly==5.22.0

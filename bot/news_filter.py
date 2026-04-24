@@ -64,10 +64,15 @@ class NewsFilter:
 
     @staticmethod
     def _is_high_impact_eur_usd(event: dict[str, Any]) -> bool:
-        """Return True for High-impact EUR or USD events."""
+        """Return True for High-impact EUR or USD events.
+
+        The FF API uses the key "country" (not "currency"); we check both
+        for forward-compatibility.
+        """
         impact: str = event.get("impact", "").lower()
-        currency: str = event.get("currency", "").upper()
-        return impact == "high" and currency in ("EUR", "USD")
+        # FF calendar uses "country" field; fall back to "currency" if absent
+        country: str = event.get("country", event.get("currency", "")).upper()
+        return impact == "high" and country in ("EUR", "USD")
 
     # ------------------------------------------------------------------
     # Public API
