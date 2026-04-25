@@ -16,9 +16,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 import click
+from dotenv import load_dotenv
 from loguru import logger
 
 import os
+
+# Load .env into os.environ BEFORE any bot modules read DATABASE_URL etc.
+load_dotenv()
 
 from config import settings
 

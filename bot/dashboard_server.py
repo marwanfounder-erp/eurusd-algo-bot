@@ -47,7 +47,7 @@ _bot_state: dict[str, Any] = {
 
 # ── Price cache — avoids blocking Flask threads on yfinance calls ─────
 _price_cache: dict[str, Any] = {
-    "bid": None, "ask": None, "spread_pips": 0.6,
+    "bid": None, "ask": None, "spread_pips": 1.2,
     "ts": None, "source": "unavailable",
 }
 _price_lock = threading.Lock()
@@ -74,7 +74,7 @@ def _seconds_to_london() -> int:
 
 def _fetch_price_raw() -> dict[str, Any]:
     """Fetch EURUSD mid price.  Three-tier: feed → yfinance → raw Yahoo API."""
-    half_spread = 0.6 * 0.0001 / 2
+    half_spread = 1.2 * 0.0001 / 2
 
     # Tier 1 — live feed object
     try:

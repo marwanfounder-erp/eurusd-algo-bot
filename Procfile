@@ -1,1 +1,1 @@
-worker: python main.py --paper
+web: python main.py --paper

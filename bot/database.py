@@ -149,6 +149,22 @@ class Database:
             logger.error("DB save_trade failed: {}", exc)
         return trade_id
 
+    def update_trade(self, trade_id: str, updates: dict[str, Any]) -> None:
+        """Update fields on an open trade (e.g. SL/TP modification)."""
+        if not updates:
+            return
+        cols = list(updates.keys())
+        vals = list(updates.values())
+        set_clause = ", ".join(f"{c} = %s" for c in cols)
+        try:
+            self._run(
+                f"UPDATE trades SET {set_clause} WHERE id = %s",
+                tuple(vals) + (trade_id,),
+            )
+            logger.info("DB: trade {} updated", trade_id[:8])
+        except Exception as exc:
+            logger.error("DB update_trade failed: {}", exc)
+
     def close_trade(
         self,
         trade_id: str,

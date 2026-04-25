@@ -129,18 +129,20 @@ class RiskManager:
         equity = account["equity"]
         risk_amount = equity * settings.risk_per_trade
 
+        # Try MT5 for exact pip value; fall back to the standard EURUSD constant
+        pip_value_per_lot: float = 10.0  # $10 per pip per standard lot (EURUSD USD account)
         try:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
             sym_info = mt5.symbol_info(symbol)
             if sym_info is None:
                 raise RuntimeError(f"symbol_info unavailable for {symbol}")
+            pip_value_per_lot = sym_info.trade_contract_size * sym_info.point * 10
         except Exception as exc:
-            logger.error("calculate_lot_size — symbol_info failed: {}", exc)
-            return 0.01
-
-        # Pip value per lot in account currency
-        # For EURUSD account in USD: pip_value = contract_size * 0.0001
-        pip_value_per_lot: float = sym_info.trade_contract_size * sym_info.point * 10
+            logger.warning(
+                "calculate_lot_size — MT5 symbol_info unavailable ({}): "
+                "using default pip_value={} for {}",
+                exc, pip_value_per_lot, symbol,
+            )
 
         if pip_value_per_lot <= 0 or stop_loss_pips <= 0:
             logger.warning(

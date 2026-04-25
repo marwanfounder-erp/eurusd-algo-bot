@@ -17,7 +17,7 @@ from loguru import logger
 from bot.database import get_db
 
 _SYMBOL_YF = "EURUSD=X"
-_SPREAD_PIP = 0.6
+_SPREAD_PIP = 1.2
 _PIP = 0.0001
 _INITIAL_BALANCE = 10_000.0
 _SNAPSHOT_INTERVAL = 3600  # seconds between hourly snapshots

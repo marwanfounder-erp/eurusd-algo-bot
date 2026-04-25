@@ -27,21 +27,21 @@ class Settings(BaseSettings):
     symbol: str = "EURUSD"
     risk_per_trade: float = 0.01
     max_daily_loss: float = 0.04
-    max_total_drawdown: float = 0.08
+    max_total_drawdown: float = 0.07
     max_lot_size: float = 5.0
-    max_open_positions: int = 3
+    max_open_positions: int = 1
     order_magic_id: int = 202400  # unique EA identifier sent with every order
 
     # Strategy parameters
     asian_session_start_utc: int = 0    # 00:00 UTC
-    asian_session_end_utc: int = 6      # 07:00 UTC
+    asian_session_end_utc: int = 7      # 07:00 UTC
     london_session_start_utc: int = 7   # 07:00 UTC
     london_session_end_utc: int = 10    # 10:00 UTC
 
-    min_range_pips: float = 15.0
-    max_range_pips: float = 40.0
+    min_range_pips: float = 10.0
+    max_range_pips: float = 50.0
     breakout_buffer_pips: float = 2.0
-    rr_ratio: float = 1.5               # 1:2 risk/reward
+    rr_ratio: float = 2.0               # 1:2 risk/reward
     rsi_period: int = 14
 
     # News filter
