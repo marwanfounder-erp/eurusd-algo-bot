@@ -184,9 +184,13 @@ def _get_news() -> list[dict[str, Any]]:
         except (ValueError, TypeError):
             continue
         secs = (dt - now).total_seconds()
-        if secs < -3600:
+        # Show events up to 6 hours in the past (so today's full schedule is visible)
+        if secs < -6 * 3600:
             continue
         from config import settings
+        # Normalise forecast/previous — may be empty string or None
+        forecast = ev.get("forecast") or ev.get("Forecast") or ""
+        previous = ev.get("previous") or ev.get("Previous") or ""
         result.append({
             "title":         ev.get("title", "Unknown"),
             "currency":      country,
@@ -194,8 +198,10 @@ def _get_news() -> list[dict[str, Any]]:
             "event_time":    dt.isoformat(),
             "minutes_until": round(secs / 60, 1),
             "warning":       0 < secs <= settings.news_filter_before_minutes * 60,
+            "forecast":      str(forecast).strip(),
+            "previous":      str(previous).strip(),
         })
-    result.sort(key=lambda x: x["minutes_until"])
+    result.sort(key=lambda x: x["event_time"])
     _news_cache    = result
     _news_cache_ts = now_mono
     return result
@@ -369,7 +375,7 @@ def api_price():  # type: ignore[return]
 
 @app.route("/api/news")
 def api_news():  # type: ignore[return]
-    return jsonify(_get_news()[:3])
+    return jsonify(_get_news())
 
 
 @app.route("/api/equity")

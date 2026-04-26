@@ -194,19 +194,102 @@
   </table>
 </div>
 
-<!-- ── News + Logs ───────────────────────────────────────────── -->
-<div class="row2">
-  <div class="card">
-    <h2>High-Impact News</h2>
-    <div id="news-list"><div style="color:#8b949e;font-size:12px">Loading…</div></div>
-  </div>
-  <div class="card">
-    <h2>Bot Logs</h2>
-    <div id="log-list"><div style="color:#8b949e;font-size:12px">Loading…</div></div>
-  </div>
+<!-- ── High-impact news ───────────────────────────────────────── -->
+<div class="row-full card">
+  <h2>High-Impact News — EUR &amp; USD (This Week)</h2>
+  <div id="news-list"><div style="color:#8b949e;font-size:12px;padding:8px 0">Loading…</div></div>
+</div>
+
+<!-- ── Bot logs ───────────────────────────────────────────────── -->
+<div class="row-full card">
+  <h2>Bot Logs</h2>
+  <div id="log-list"><div style="color:#8b949e;font-size:12px">Loading…</div></div>
 </div>
 
 <script>
+// ── News time helpers ─────────────────────────────────────────────────
+function toUTC(utcDateStr) {
+  const d = new Date(utcDateStr);
+  return d.getUTCHours().toString().padStart(2,'0') + ':'
+       + d.getUTCMinutes().toString().padStart(2,'0') + ' UTC';
+}
+
+function toGST(utcDateStr) {
+  const d = new Date(utcDateStr);
+  const gst = new Date(d.getTime() + 4 * 60 * 60 * 1000);
+  return gst.getUTCHours().toString().padStart(2,'0') + ':'
+       + gst.getUTCMinutes().toString().padStart(2,'0') + ' GST';
+}
+
+function getCountdown(utcDateStr) {
+  const diffMs   = new Date(utcDateStr) - new Date();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < -60)  return { text: '✅ Passed',                       color: '#8b949e' };
+  if (diffMins <   0)  return { text: '🔴 LIVE NOW',                     color: '#f85149' };
+  if (diffMins <  30)  return { text: '⛔ BLACKOUT ' + diffMins + 'm',   color: '#f85149' };
+  if (diffMins <  60)  return { text: 'in ' + diffMins + 'm',            color: '#d29922' };
+  const h = Math.floor(diffMins / 60), m = diffMins % 60;
+  if (h < 24)          return { text: 'in ' + h + 'h ' + m + 'm',       color: '#e6edf3' };
+  return               { text: 'Tomorrow',                               color: '#8b949e' };
+}
+
+// Currency flag map
+const _FLAGS = { USD: '🇺🇸', EUR: '🇪🇺' };
+
+// Stored news events for live countdown updates
+let _newsEvents = [];
+
+function renderNews(events) {
+  _newsEvents = events;
+  const el = document.getElementById('news-list');
+  if (!el) return;
+  if (!events || events.length === 0) {
+    el.innerHTML = '<div style="color:#8b949e;font-size:12px;padding:8px 0">No high-impact news this week</div>';
+    return;
+  }
+  el.innerHTML = events.map((e, i) => {
+    const cd  = getCountdown(e.event_time);
+    const flag = _FLAGS[e.currency] || '🌐';
+    const fc  = e.forecast ? '<span style="font-size:11px;color:#8b949e">Forecast: <span style="color:#e6edf3">' + e.forecast + '</span></span>' : '';
+    const pr  = e.previous ? '<span style="font-size:11px;color:#8b949e">Previous: <span style="color:#e6edf3">' + e.previous + '</span></span>' : '';
+    return '<div style="background:#0d1117;border:0.5px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+        + '<div style="display:flex;align-items:center;gap:8px">'
+          + '<span style="font-size:18px">' + flag + '</span>'
+          + '<span style="font-size:13px;font-weight:500;color:#e6edf3">' + (e.title||'') + '</span>'
+          + '<span style="background:#da363622;color:#f85149;border:0.5px solid #da3633;padding:2px 7px;border-radius:4px;font-size:10px">HIGH</span>'
+        + '</div>'
+        + '<span id="cd-' + i + '" style="font-size:12px;font-weight:500;color:' + cd.color + '">' + cd.text + '</span>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:' + (fc||pr ? '10px' : '0') + '">'
+        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
+          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">UTC</div>'
+          + '<div style="font-size:14px;font-weight:500;color:#e6edf3">' + toUTC(e.event_time) + '</div>'
+        + '</div>'
+        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
+          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">GST (UAE)</div>'
+          + '<div style="font-size:14px;font-weight:500;color:#58a6ff">' + toGST(e.event_time) + '</div>'
+        + '</div>'
+        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
+          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">Countdown</div>'
+          + '<div id="cd-box-' + i + '" style="font-size:13px;font-weight:500;color:' + cd.color + '">' + cd.text + '</div>'
+        + '</div>'
+      + '</div>'
+      + ((fc || pr) ? '<div style="display:flex;gap:16px">' + fc + pr + '</div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function updateNewsCountdowns() {
+  _newsEvents.forEach((e, i) => {
+    const cd  = getCountdown(e.event_time);
+    const inline = document.getElementById('cd-' + i);
+    const box    = document.getElementById('cd-box-' + i);
+    if (inline) { inline.textContent = cd.text; inline.style.color = cd.color; }
+    if (box)    { box.textContent    = cd.text; box.style.color    = cd.color; }
+  });
+}
+
 // ── Fetch with cache-busting ──────────────────────────────────────────
 const API_BASE = '';
 
@@ -317,23 +400,9 @@ async function refresh() {
     if(safeEl) safeEl.style.color = r.safe_to_trade ? '#3fb950' : '#f85149';
   }
 
-  // NEWS — raw array, not wrapped in object
+  // NEWS — raw array sorted by event_time; renderNews handles display
   const n = await get('/api/news');
-  const newsEl = document.getElementById('news-list');
-  if (newsEl && Array.isArray(n) && n.length > 0) {
-    newsEl.innerHTML = n.slice(0,3).map(e => {
-      const mins = Number(e.minutes_until||0);
-      const timeStr = mins < 60 ? 'in '+Math.round(mins)+'m'
-                    : mins < 1440 ? 'in '+Math.floor(mins/60)+'h '+Math.round(mins%60)+'m'
-                    : 'Tomorrow';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid #21262d;font-size:12px">'
-        +'<span>'+(e.title||e.event||'')+'</span>'
-        +'<span style="color:#f85149;font-size:10px">HIGH</span>'
-        +'<span style="color:#8b949e">'+timeStr+'</span></div>';
-    }).join('');
-  } else if(newsEl) {
-    newsEl.innerHTML = '<div style="color:#8b949e;font-size:12px;padding:8px 0">No high-impact news this week</div>';
-  }
+  renderNews(Array.isArray(n) ? n : []);
 
   // TRADES — fields: date, direction, entry, exit, pnl, outcome
   const tr = await get('/api/trades');
@@ -424,16 +493,17 @@ function updateCountdown() {
 refresh();
 updateCountdown();
 
-setInterval(updateCountdown, 1000);
+setInterval(updateCountdown, 1000);         // London countdown: every 1s
+setInterval(updateNewsCountdowns, 30000);   // News countdowns: every 30s
 
 setInterval(() => get('/api/price').then(p => {
   if (p) {
     set('val-bid', p.bid ? Number(p.bid).toFixed(5) : '—');
     set('val-ask', p.ask ? Number(p.ask).toFixed(5) : '—');
   }
-}), 5000);
+}), 5000);                                  // Price: every 5s
 
-setInterval(refresh, 30000);
+setInterval(refresh, 30000);               // Full refresh: every 30s
 </script>
 
 </body>
