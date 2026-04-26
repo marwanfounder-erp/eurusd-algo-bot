@@ -207,24 +207,16 @@
 </div>
 
 <script>
-// ── Debug panel ───────────────────────────────────────────────────────
-function debugLog(msg) {
-  const el = document.getElementById('debug-log');
-  if (!el) return;
-  el.innerHTML = new Date().toLocaleTimeString() + ' ' + msg + '<br>' + el.innerHTML;
-}
-
-// ── RULE 1: Simple fetch with cache-busting ───────────────────────────
+// ── Fetch with cache-busting ──────────────────────────────────────────
 const API_BASE = '';
 
 async function get(path) {
   try {
     const r = await fetch(API_BASE + path + '?t=' + Date.now());
     const j = await r.json();
-    debugLog('&#x2705; ' + path + ' &rarr; ' + JSON.stringify(j).substring(0, 80));
     return j;
   } catch(e) {
-    debugLog('&#x274C; ' + path + ' &rarr; ' + e.message);
+    console.error(path, e);
     return null;
   }
 }
@@ -278,105 +270,111 @@ function drawChart(labels, data) {
   });
 }
 
-// ── RULE 4: Main refresh ──────────────────────────────────────────────
+// ── Main refresh ──────────────────────────────────────────────────────
 async function refresh() {
 
-  // 1. Status
+  // STATUS
   const s = await get('/api/status');
   if (s) {
     set('val-balance', '$' + Number(s.balance||10000).toFixed(2));
-    set('val-today-pnl', (Number(s.today_pnl||0)>=0?'+':'') + '$' + Number(s.today_pnl||0).toFixed(2));
-    setColor('val-today-pnl', s.today_pnl);
-    set('val-return', (Number(s.total_return_pct||0)>=0?'+':'') + Number(s.total_return_pct||0).toFixed(2) + '%');
-    setColor('val-return', s.total_return_pct);
-    set('val-trades', s.total_trades||0);
-    set('val-winrate', Number(s.win_rate||0).toFixed(1) + '%');
-    set('val-wl', (s.wins||0) + 'W / ' + (s.losses||0) + 'L');
+    const pnl = Number(s.today_pnl||0);
+    set('val-today-pnl', (pnl>=0?'+$':'−$') + Math.abs(pnl).toFixed(2));
+    setColor('val-today-pnl', pnl);
+    const ret = Number(s.total_return_pct||0);
+    set('val-return', (ret>=0?'+':'')+ret.toFixed(2)+'%');
+    setColor('val-return', ret);
+    set('val-trades', (s.total_trades||0) + ' trades');
+    set('val-winrate', Number(s.win_rate||0).toFixed(1)+'%');
+    set('val-wl', (s.wins||0)+'W / '+(s.losses||0)+'L');
     set('val-status', s.status||'Running');
-    set('val-mode', (s.mode||'PAPER') + ' / ' + (s.feed||'YahooFinance'));
-    set('val-signal', s.last_signal ? new Date(s.last_signal).toLocaleTimeString() : 'No signal yet');
-    set('val-since', s.running_since ? new Date(s.running_since).toLocaleTimeString() : '—');
+    set('val-mode', (s.mode||'PAPER')+' / '+(s.feed||'PaperFeed'));
+    set('val-signal', s.last_signal||'No signal yet');
+    if(s.running_since) set('val-since', new Date(s.running_since).toLocaleTimeString());
   }
 
-  // 2. Price
+  // PRICE
   const p = await get('/api/price');
   if (p) {
     set('val-bid', p.bid ? Number(p.bid).toFixed(5) : '—');
     set('val-ask', p.ask ? Number(p.ask).toFixed(5) : '—');
-    set('val-spread', p.spread_pips ? Number(p.spread_pips).toFixed(1) + 'p' : '—');
+    set('val-spread', p.spread_pips ? Number(p.spread_pips).toFixed(1)+'p' : '—');
   }
 
-  // 3. Risk
+  // RISK
   const r = await get('/api/risk');
   if (r) {
     const dl = Number(r.daily_loss_pct||0);
     const dd = Number(r.drawdown_pct||0);
-    set('val-daily', dl.toFixed(2) + '% / 4%');
-    set('val-dd', dd.toFixed(2) + '% / 8%');
-    document.getElementById('bar-daily').style.width = Math.min(dl/4*100, 100) + '%';
-    document.getElementById('bar-dd').style.width   = Math.min(dd/8*100, 100) + '%';
-    set('val-safe', r.safe_to_trade ? 'Safe to Trade' : 'LIMIT BREACHED');
-    document.getElementById('val-safe').style.color = r.safe_to_trade ? '#3fb950' : '#f85149';
+    const dlLimit = Number(r.daily_limit_pct||4);
+    set('val-daily', dl.toFixed(2)+'% / '+dlLimit+'%');
+    set('val-dd', dd.toFixed(2)+'% / 8%');
+    const dlBar = document.getElementById('bar-daily');
+    const ddBar = document.getElementById('bar-dd');
+    if(dlBar) dlBar.style.width = Math.min(dl/dlLimit*100,100)+'%';
+    if(ddBar) ddBar.style.width = Math.min(dd/8*100,100)+'%';
+    set('val-safe', r.safe_to_trade ? 'Safe to Trade ✓' : 'LIMIT BREACHED');
+    const safeEl = document.getElementById('val-safe');
+    if(safeEl) safeEl.style.color = r.safe_to_trade ? '#3fb950' : '#f85149';
   }
 
-  // 4. News — /api/news returns a raw array (no wrapper object)
+  // NEWS — raw array, not wrapped in object
   const n = await get('/api/news');
   const newsEl = document.getElementById('news-list');
-  if (n && Array.isArray(n) && n.length > 0) {
+  if (newsEl && Array.isArray(n) && n.length > 0) {
     newsEl.innerHTML = n.slice(0,3).map(e => {
-      const m = Number(e.minutes_until||0);
-      const t = m < 60 ? 'in ' + Math.round(m) + 'm'
-               : m < 1440 ? 'in ' + Math.floor(m/60) + 'h'
-               : 'Tomorrow';
-      return '<div style="display:flex;justify-content:space-between;padding:6px 0;'
-           + 'border-bottom:0.5px solid #21262d;font-size:12px">'
-           + '<span>' + (e.title||'') + '</span>'
-           + '<span style="color:#f85149">HIGH</span>'
-           + '<span style="color:#8b949e">' + t + '</span></div>';
+      const mins = Number(e.minutes_until||0);
+      const timeStr = mins < 60 ? 'in '+Math.round(mins)+'m'
+                    : mins < 1440 ? 'in '+Math.floor(mins/60)+'h '+Math.round(mins%60)+'m'
+                    : 'Tomorrow';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid #21262d;font-size:12px">'
+        +'<span>'+(e.title||e.event||'')+'</span>'
+        +'<span style="color:#f85149;font-size:10px">HIGH</span>'
+        +'<span style="color:#8b949e">'+timeStr+'</span></div>';
     }).join('');
-  } else {
+  } else if(newsEl) {
     newsEl.innerHTML = '<div style="color:#8b949e;font-size:12px;padding:8px 0">No high-impact news this week</div>';
   }
 
-  // 5. Trades — fields: date, direction, entry, exit, pnl, outcome
+  // TRADES — fields: date, direction, entry, exit, pnl, outcome
   const tr = await get('/api/trades');
   const trEl = document.getElementById('tbl-trades');
-  if (tr && tr.trades && tr.trades.length > 0) {
+  if (trEl && tr && tr.trades && tr.trades.length > 0) {
     trEl.innerHTML = tr.trades.slice(0,20).map(t => {
-      const badge = t.outcome === 'win'
+      const isWin = t.outcome === 'win' || t.result === 'win';
+      const badge = isWin
         ? '<span style="background:#23863622;color:#3fb950;border:0.5px solid #238636;padding:2px 7px;border-radius:4px;font-size:10px">WIN</span>'
         : '<span style="background:#da363622;color:#f85149;border:0.5px solid #da3633;padding:2px 7px;border-radius:4px;font-size:10px">LOSS</span>';
-      const dt = t.date ? new Date(t.date).toLocaleDateString('en',{month:'short',day:'numeric'}) : '—';
       const pnlColor = Number(t.pnl||0) >= 0 ? '#3fb950' : '#f85149';
       return '<tr>'
-        + '<td>' + dt + '</td>'
-        + '<td>' + (t.direction||'—') + '</td>'
-        + '<td>' + (t.entry ? Number(t.entry).toFixed(5) : '—') + '</td>'
-        + '<td>' + (t.exit  ? Number(t.exit).toFixed(5)  : '—') + '</td>'
-        + '<td style="color:' + pnlColor + '">' + (t.pnl != null ? '$'+Number(t.pnl).toFixed(2) : '—') + '</td>'
-        + '<td>' + badge + '</td></tr>';
+        +'<td>'+(t.date||'—')+'</td>'
+        +'<td>'+(t.direction||'—')+'</td>'
+        +'<td>'+(t.entry?Number(t.entry).toFixed(5):'—')+'</td>'
+        +'<td>'+(t.exit?Number(t.exit).toFixed(5):'—')+'</td>'
+        +'<td style="color:'+pnlColor+'">'+(t.pnl!=null?'$'+Number(t.pnl).toFixed(2):'—')+'</td>'
+        +'<td>'+badge+'</td>'
+        +'</tr>';
     }).join('');
-  } else {
+  } else if(trEl) {
     trEl.innerHTML = '<tr><td colspan="6" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>';
   }
 
-  // 6. Positions — fields: direction, entry, sl, tp, lot
+  // POSITIONS — fields: direction, entry, sl, tp, lot
   const pos = await get('/api/positions');
   const posEl = document.getElementById('tbl-positions');
-  if (pos && pos.positions && pos.positions.length > 0) {
+  if (posEl && pos && pos.positions && pos.positions.length > 0) {
     posEl.innerHTML = pos.positions.map(p => {
       return '<tr>'
-        + '<td>' + (p.direction||'—') + '</td>'
-        + '<td>' + (p.entry  ? Number(p.entry).toFixed(5) : '—') + '</td>'
-        + '<td>' + (p.sl     ? Number(p.sl).toFixed(5)    : '—') + '</td>'
-        + '<td>' + (p.tp     ? Number(p.tp).toFixed(5)    : '—') + '</td>'
-        + '<td>' + (p.lot    ? Number(p.lot).toFixed(2)   : '—') + '</td></tr>';
+        +'<td>'+(p.direction||'—')+'</td>'
+        +'<td>'+(p.entry?Number(p.entry).toFixed(5):'—')+'</td>'
+        +'<td>'+(p.sl?Number(p.sl).toFixed(5):'—')+'</td>'
+        +'<td>'+(p.tp?Number(p.tp).toFixed(5):'—')+'</td>'
+        +'<td>'+(p.lot?Number(p.lot).toFixed(2):'—')+'</td></tr>';
     }).join('');
-  } else {
+  } else if(posEl) {
     posEl.innerHTML = '<tr><td colspan="5" style="color:#8b949e;text-align:center;padding:16px">No open positions</td></tr>';
   }
 
-  // 7. Equity — field: ts (not timestamp)
+  // EQUITY — fields: ts, balance
   const eq = await get('/api/equity');
   if (eq && eq.snapshots && eq.snapshots.length > 0) {
     drawChart(
@@ -385,23 +383,24 @@ async function refresh() {
     );
   }
 
-  // 8. Logs — field: ts (not timestamp)
+  // LOGS — fields: ts, level, message
   const lg = await get('/api/logs');
   const lgEl = document.getElementById('log-list');
-  if (lg && lg.logs && lg.logs.length > 0) {
+  if (lgEl && lg && lg.logs && lg.logs.length > 0) {
     lgEl.innerHTML = lg.logs.slice(0,15).map(l => {
-      const c = l.level === 'ERROR' ? '#f85149' : l.level === 'WARNING' ? '#d29922' : '#8b949e';
+      const c = l.level==='ERROR' ? '#f85149'
+              : l.level==='WARNING' ? '#d29922' : '#8b949e';
       const t = l.ts ? new Date(l.ts).toLocaleTimeString() : '';
-      return '<div style="font-size:11px;padding:3px 0;border-bottom:0.5px solid #21262d;'
-           + 'display:flex;gap:8px;font-family:monospace">'
-           + '<span style="color:#555;min-width:70px">' + t + '</span>'
-           + '<span style="color:' + c + '">' + (l.message||'') + '</span></div>';
+      return '<div style="font-size:11px;padding:3px 0;border-bottom:0.5px solid #21262d;display:flex;gap:8px;font-family:monospace">'
+        +'<span style="color:#555;min-width:70px">'+t+'</span>'
+        +'<span style="color:'+c+'">'+(l.message||'')+'</span>'
+        +'</div>';
     }).join('');
-  } else {
+  } else if(lgEl) {
     lgEl.innerHTML = '<div style="color:#8b949e;font-size:12px">No logs yet</div>';
   }
 
-  // Update timestamp
+  // Timestamp
   document.getElementById('last-update').textContent = 'Updated: ' + new Date().toLocaleTimeString();
 }
 
@@ -437,12 +436,5 @@ setInterval(() => get('/api/price').then(p => {
 setInterval(refresh, 30000);
 </script>
 
-<!-- ── Live debug panel ─────────────────────────────────────────── -->
-<div style="position:fixed;bottom:0;left:0;right:0;background:#0d1117;
-  color:#3fb950;font-family:monospace;font-size:11px;padding:8px 12px;
-  max-height:120px;overflow-y:auto;z-index:9999;
-  border-top:1px solid #30363d">
-  <div id="debug-log">Connecting…</div>
-</div>
 </body>
 </html>
