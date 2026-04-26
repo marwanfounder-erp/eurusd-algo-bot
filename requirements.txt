@@ -10,12 +10,6 @@ yfinance>=1.2.0
 # To install on your Windows trading host: pip install MetaTrader5==5.0.45
 MetaTrader5==5.0.45; sys_platform == "win32"
 
-# TA-Lib Python wrapper — requires the TA-Lib C library to be installed first.
-# Not required on Railway (pure-pandas RSI fallback is used automatically).
-#   macOS:   brew install ta-lib && pip install TA-Lib==0.4.32
-#   Ubuntu:  apt-get install ta-lib && pip install TA-Lib==0.4.32
-#   Windows: download from https://sourceforge.net/projects/ta-lib/
-
 # Environment / config
 python-dotenv==1.0.1
 pydantic==2.7.4
