@@ -207,17 +207,24 @@
 </div>
 
 <script>
-// ── RULE 1: Simple fetch ──────────────────────────────────────────────
+// ── Debug panel ───────────────────────────────────────────────────────
+function debugLog(msg) {
+  const el = document.getElementById('debug-log');
+  if (!el) return;
+  el.innerHTML = new Date().toLocaleTimeString() + ' ' + msg + '<br>' + el.innerHTML;
+}
+
+// ── RULE 1: Simple fetch with cache-busting ───────────────────────────
 const API_BASE = '';
 
 async function get(path) {
   try {
-    const r = await fetch(API_BASE + path);
+    const r = await fetch(API_BASE + path + '?t=' + Date.now());
     const j = await r.json();
-    console.log('[API]', path, j);
+    debugLog('&#x2705; ' + path + ' &rarr; ' + JSON.stringify(j).substring(0, 80));
     return j;
   } catch(e) {
-    console.error('[API ERROR]', path, e);
+    debugLog('&#x274C; ' + path + ' &rarr; ' + e.message);
     return null;
   }
 }
@@ -429,5 +436,13 @@ setInterval(() => get('/api/price').then(p => {
 
 setInterval(refresh, 30000);
 </script>
+
+<!-- ── Live debug panel ─────────────────────────────────────────── -->
+<div style="position:fixed;bottom:0;left:0;right:0;background:#0d1117;
+  color:#3fb950;font-family:monospace;font-size:11px;padding:8px 12px;
+  max-height:120px;overflow-y:auto;z-index:9999;
+  border-top:1px solid #30363d">
+  <div id="debug-log">Connecting…</div>
+</div>
 </body>
 </html>
