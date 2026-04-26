@@ -24,6 +24,15 @@ import os
 # Load .env into os.environ BEFORE any bot modules read DATABASE_URL etc.
 load_dotenv()
 
+# TEMP: Railway DATABASE_URL diagnostic — remove after checking logs
+_db_url = os.getenv('DATABASE_URL', 'NOT SET')
+print(f'[DIAG] DB URL length: {len(_db_url)}')
+print(f'[DIAG] DB URL start: {_db_url[:30]}')
+print(f'[DIAG] DB URL end: {_db_url[-30:]}')
+print(f'[DIAG] Has sslmode: {"sslmode" in _db_url}')
+print(f'[DIAG] Has channel_binding: {"channel_binding" in _db_url}')
+del _db_url
+
 from config import settings
 
 # ──────────────────────────────────────────────────────────────────────
