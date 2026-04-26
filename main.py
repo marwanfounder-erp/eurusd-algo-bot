@@ -359,6 +359,12 @@ class TradingBot:
         )
 
         while self._running:
+            # Weekend — forex closed, no need to poll every 60 s
+            if not self._strategy.is_market_open():
+                logger.info("Weekend — bot sleeping 1 hour")
+                time.sleep(3600)
+                continue
+
             start = time.monotonic()
             try:
                 self._tick()

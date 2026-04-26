@@ -61,6 +61,21 @@ class LondonBreakoutStrategy:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def is_market_open(dt: datetime | None = None) -> bool:
+        """Return False on weekends when forex is closed.
+
+        Forex is closed:
+          - All day Saturday (weekday 5)
+          - Sunday before 21:00 UTC (weekday 6, hour < 21)
+        """
+        now = dt or datetime.now(tz=timezone.utc)
+        if now.weekday() == 5:          # Saturday — fully closed
+            return False
+        if now.weekday() == 6 and now.hour < 21:  # Sunday pre-open
+            return False
+        return True
+
+    @staticmethod
     def is_london_session(dt: datetime | None = None) -> bool:
         """Return True if *dt* (UTC) falls within the London breakout window."""
         now = dt or datetime.now(tz=timezone.utc)
@@ -94,7 +109,7 @@ class LondonBreakoutStrategy:
         ]
 
         if asian.empty:
-            logger.warning("No Asian-session bars found for today")
+            logger.debug("No Asian-session bars found for today")
             return {"high": 0.0, "low": 0.0, "range_pips": 0.0}
 
         high = float(asian["high"].max())
@@ -162,6 +177,11 @@ class LondonBreakoutStrategy:
             "range_pips": 0.0,
             "confidence": "low",
         }
+
+        # 0. Forex closed on weekends
+        if not self.is_market_open():
+            logger.info("Market closed — weekend. Waiting for Monday open.")
+            return {**_null, "reason": "market_closed"}
 
         # 1. Must be inside London session
         if not self.is_london_session():

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -39,10 +40,24 @@ _IN_MEMORY_LOGS: list[dict[str, Any]] = []   # fallback when DB is down
 class Database:
     """Thread-safe PostgreSQL database interface with connection pooling."""
 
+    _KEEPALIVE_PARAMS: dict = {
+        "sslmode":           "require",
+        "keepalives":        1,
+        "keepalives_idle":   30,
+        "keepalives_interval": 10,
+        "keepalives_count":  5,
+        "connect_timeout":   10,
+    }
+
     def __init__(self) -> None:
         self._pool: SimpleConnectionPool | None = None
         self._lock = threading.Lock()
+        self._db_url: str = ""
         self._connect()
+
+        # Background keepalive — pings every 4 min so Neon never idles out
+        t = threading.Thread(target=self._keepalive_ping, daemon=True)
+        t.start()
 
     # ── Connection management ─────────────────────────────────────────
 
@@ -51,14 +66,57 @@ class Database:
         if not url:
             logger.error("DATABASE_URL not set — DB features disabled")
             return
-        if "sslmode" not in url:
-            url += ("&" if "?" in url else "?") + "sslmode=require"
+        # Strip any inline sslmode= so our explicit kwarg takes precedence
+        if "sslmode" in url:
+            import re
+            url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?")
+        self._db_url = url
         try:
-            self._pool = SimpleConnectionPool(1, 5, url)
+            self._pool = SimpleConnectionPool(1, 5, url, **self._KEEPALIVE_PARAMS)
             logger.info("Database pool created (min=1, max=5)")
         except Exception as exc:
             logger.error("Database connection failed: {}", exc)
             self._pool = None
+
+    def _rebuild_pool(self) -> None:
+        """Tear down the old pool and create a fresh one."""
+        logger.warning("Rebuilding database connection pool")
+        with self._lock:
+            try:
+                if self._pool:
+                    self._pool.closeall()
+            except Exception:
+                pass
+            self._pool = None
+            try:
+                self._pool = SimpleConnectionPool(
+                    1, 5, self._db_url, **self._KEEPALIVE_PARAMS
+                )
+                logger.info("Database pool rebuilt successfully")
+            except Exception as exc:
+                logger.error("Pool rebuild failed: {}", exc)
+                self._pool = None
+
+    def _keepalive_ping(self) -> None:
+        """Background thread — keeps Neon alive by pinging every 4 minutes."""
+        while True:
+            time.sleep(240)
+            try:
+                with self._lock:
+                    if self._pool is None:
+                        continue
+                    conn = self._pool.getconn()
+                try:
+                    conn.cursor().execute("SELECT 1")
+                    conn.commit()
+                finally:
+                    with self._lock:
+                        if self._pool:
+                            self._pool.putconn(conn)
+                logger.debug("DB keepalive ping OK")
+            except Exception as exc:
+                logger.warning("DB keepalive ping failed: {} — rebuilding pool", exc)
+                self._rebuild_pool()
 
     def get_conn(self):  # type: ignore[return]
         with self._lock:
@@ -66,7 +124,27 @@ class Database:
                 self._connect()
             if self._pool is None:
                 raise RuntimeError("No database connection available")
-            return self._pool.getconn()
+            conn = self._pool.getconn()
+
+        # Health-check the connection; rebuild pool if dead
+        try:
+            conn.cursor().execute("SELECT 1")
+            conn.commit()
+        except Exception:
+            logger.warning("Stale connection detected — rebuilding pool")
+            try:
+                with self._lock:
+                    if self._pool:
+                        self._pool.putconn(conn, close=True)
+            except Exception:
+                pass
+            self._rebuild_pool()
+            with self._lock:
+                if self._pool is None:
+                    raise RuntimeError("No database connection available")
+                conn = self._pool.getconn()
+
+        return conn
 
     def release_conn(self, conn: Any, close: bool = False) -> None:
         with self._lock:
