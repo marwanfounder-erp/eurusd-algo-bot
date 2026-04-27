@@ -200,6 +200,12 @@ class TradingBot:
     # ------------------------------------------------------------------
 
     def _tick(self) -> None:
+        # Monitor open positions for TP/SL hits on every iteration (paper feed only)
+        if self._is_paper_feed:
+            from bot.paper_feed import PaperFeed
+            assert isinstance(self._feed, PaperFeed)
+            self._feed.monitor_positions()
+
         self._maybe_reset_daily()
 
         # a. Risk checks
@@ -225,12 +231,16 @@ class TradingBot:
                 self._executor.close_all_positions(settings.symbol)
             return
 
-        # d. Skip if already in a trade
+        # d. Skip if already in a trade — query DB directly to survive restarts
         if self._is_paper_feed:
             from bot.paper_feed import PaperFeed
             assert isinstance(self._feed, PaperFeed)
-            if self._feed.get_open_position() is not None:
-                logger.debug("Paper position already open — skipping signal")
+            if self._feed.has_open_position():
+                open_trades = self._db.get_open_trades()
+                logger.info(
+                    "Position already open in DB ({} trade(s)) — skipping signal",
+                    len(open_trades),
+                )
                 return
         else:
             open_pos = self._executor.get_open_positions(settings.symbol)

@@ -40,10 +40,16 @@ class PaperFeed:
         stats = db.get_stats()
         self._balance: float = float(stats.get("current_balance", _INITIAL_BALANCE))
 
+        from bot.notifier import TelegramNotifier
+        self._notifier = TelegramNotifier()
+
         logger.info(
             "PaperFeed initialised | symbol={} balance=${:.2f}",
             _SYMBOL_YF, self._balance,
         )
+
+        # Restore any open positions from DB (survives restarts)
+        self._restore_positions()
 
     # ── DataFeed compatibility shims ───────────────────────────────────
 
@@ -269,6 +275,114 @@ class PaperFeed:
     def get_open_position(self) -> dict[str, Any] | None:
         """Return the current open position or None."""
         return self._open_position
+
+    # ── DB-backed position helpers ─────────────────────────────────────
+
+    def has_open_position(self) -> bool:
+        """Check the DB directly — survives restarts."""
+        try:
+            return len(get_db().get_open_trades()) > 0
+        except Exception:
+            return False  # safe default: don't block trading on DB error
+
+    def _restore_positions(self) -> None:
+        """On startup, reload any open trades from DB into in-memory state."""
+        try:
+            open_trades = get_db().get_open_trades()
+            if open_trades:
+                t = open_trades[0]
+                self._open_position = {
+                    "trade_id": t["id"],
+                    "direction": t["direction"],
+                    "entry":     float(t["entry_price"]),
+                    "sl":        float(t["stop_loss"]),
+                    "tp":        float(t["take_profit"]),
+                    "lot":       float(t["lot_size"]),
+                    "sl_pips":   abs(float(t["entry_price"]) - float(t["stop_loss"])) / _PIP,
+                    "rsi":       t.get("rsi"),
+                    "opened_at": str(t.get("opened_at", "")),
+                    "date":      str(t.get("opened_at", ""))[:10],
+                }
+                logger.info("Restored {} open position(s) from DB", len(open_trades))
+                for trade in open_trades:
+                    logger.info(
+                        "  Restored: {} entry={} sl={} tp={}",
+                        trade["direction"], trade["entry_price"],
+                        trade["stop_loss"], trade["take_profit"],
+                    )
+            else:
+                logger.info("No open positions to restore")
+        except Exception as exc:
+            logger.error("Failed to restore positions: {}", exc)
+
+    def monitor_positions(self) -> None:
+        """Check every open DB trade against current price; close on TP/SL hit."""
+        db = get_db()
+        open_trades = db.get_open_trades()
+        if not open_trades:
+            return
+
+        try:
+            tick = self.get_tick("EURUSD")
+        except Exception:
+            return
+
+        current_price = tick["bid"]
+
+        for trade in open_trades:
+            entry     = float(trade["entry_price"])
+            sl        = float(trade["stop_loss"])
+            tp        = float(trade["take_profit"])
+            direction = trade["direction"]
+            lot       = float(trade["lot_size"])
+            trade_id  = trade["id"]
+
+            if direction == "BUY":
+                if current_price >= tp:
+                    pips = (tp - entry) / _PIP
+                    pnl  = pips * 10 * lot
+                    db.close_trade(trade_id, tp, round(pnl, 2), round(pips, 1), "win")
+                    self._balance += pnl
+                    self._open_position = None
+                    logger.info("Trade {} CLOSED WIN @ {} pnl=+${:.2f}", trade_id[:8], tp, pnl)
+                    self._notifier.send(f"✅ WIN +${pnl:.2f} ({pips:.1f} pips)")
+                elif current_price <= sl:
+                    pips = (entry - sl) / _PIP
+                    pnl  = -(pips * 10 * lot)
+                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), "loss")
+                    self._balance += pnl
+                    self._open_position = None
+                    logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
+                    self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
+                else:
+                    unrealized = (current_price - entry) / _PIP
+                    logger.info(
+                        "Trade {} OPEN | price={:.5f} unrealized={:.1f}pips",
+                        trade_id[:8], current_price, unrealized,
+                    )
+            elif direction == "SELL":
+                if current_price <= tp:
+                    pips = (entry - tp) / _PIP
+                    pnl  = pips * 10 * lot
+                    db.close_trade(trade_id, tp, round(pnl, 2), round(pips, 1), "win")
+                    self._balance += pnl
+                    self._open_position = None
+                    logger.info("Trade {} CLOSED WIN @ {} pnl=+${:.2f}", trade_id[:8], tp, pnl)
+                    self._notifier.send(f"✅ WIN +${pnl:.2f} ({pips:.1f} pips)")
+                elif current_price >= sl:
+                    pips = (sl - entry) / _PIP
+                    pnl  = -(pips * 10 * lot)
+                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), "loss")
+                    self._balance += pnl
+                    self._open_position = None
+                    logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
+                    self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
+                else:
+                    unrealized = (entry - current_price) / _PIP
+                    logger.info(
+                        "Trade {} OPEN | price={:.5f} unrealized={:.1f}pips",
+                        trade_id[:8], current_price, unrealized,
+                    )
 
     # ── Hourly snapshot helper ─────────────────────────────────────────
 
