@@ -314,7 +314,8 @@ class PaperFeed:
                 )
                 for dup in duplicates:
                     dup_id = str(dup["id"])
-                    db.update_trade(dup_id, {"status": "cancelled", "result": "cancelled"})
+                    # Only update status — result column is varchar(4) and can't hold 'cancelled'
+                    db.update_trade(dup_id, {"status": "closed"})
                     logger.info("  Cancelled duplicate trade {}", dup_id[:8])
 
             t = open_trades[0]
