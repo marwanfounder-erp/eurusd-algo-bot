@@ -292,7 +292,7 @@ class PaperFeed:
             if open_trades:
                 t = open_trades[0]
                 self._open_position = {
-                    "trade_id": t["id"],
+                    "trade_id": str(t["id"]),
                     "direction": t["direction"],
                     "entry":     float(t["entry_price"]),
                     "sl":        float(t["stop_loss"]),
@@ -335,7 +335,7 @@ class PaperFeed:
             tp        = float(trade["take_profit"])
             direction = trade["direction"]
             lot       = float(trade["lot_size"])
-            trade_id  = trade["id"]
+            trade_id  = str(trade["id"])  # UUID → str for slicing and DB calls
 
             if direction == "BUY":
                 if current_price >= tp:
