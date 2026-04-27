@@ -28,31 +28,56 @@
                 background: #3fb950; display: inline-block; margin-right: 6px;
                 animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Row 1: 4 KPI cards */
   .grid-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr));
               gap: 12px; margin-bottom: 16px; }
+
+  /* Shared card */
   .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 14px 16px; }
   .card-label { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
   .card-value { font-size: 22px; font-weight: 600; color: #e6edf3; }
   .card-sub { font-size: 11px; color: #8b949e; margin-top: 4px; }
-  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .row-full { margin-bottom: 16px; }
+
+  /* Row 2: price (full-width) */
+  .row-price { margin-bottom: 16px; }
   .price-row { display: flex; gap: 24px; }
   .price-item { display: flex; flex-direction: column; }
   .price-label { font-size: 10px; color: #8b949e; }
   .price-value { font-size: 20px; font-weight: 600; font-family: monospace; }
+
+  /* Row 3: bot-status | risk | news  (3-col) */
+  .row-mid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* Full-width rows */
+  .row-full { margin-bottom: 16px; }
+
+  /* Risk bars */
   .bar-track { background: #21262d; border-radius: 4px; height: 6px; margin-top: 6px; }
   .bar-fill { height: 6px; border-radius: 4px; background: #3fb950;
               width: 0%; transition: width .4s; }
   .risk-row { display: flex; justify-content: space-between; font-size: 12px;
               margin-bottom: 4px; }
+
+  /* Trade history table */
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th { text-align: left; padding: 6px 8px; font-size: 10px; color: #8b949e;
        font-weight: 500; text-transform: uppercase; border-bottom: 1px solid #21262d; }
   td { padding: 7px 8px; border-bottom: .5px solid #21262d; color: #c9d1d9; }
   tr:last-child td { border-bottom: none; }
+
+  /* Equity chart */
   .chart-wrap { height: 180px; position: relative; }
+
+  /* Countdown */
   .countdown { font-size: 28px; font-weight: 700; font-family: monospace; color: #3fb950; }
+
+  /* Bot status info rows */
   .info-row { display: flex; justify-content: space-between; font-size: 12px;
               padding: 4px 0; border-bottom: .5px solid #21262d; }
   .info-row:last-child { border-bottom: none; }
@@ -70,7 +95,7 @@
   </div>
 </div>
 
-<!-- ── Top KPI cards ──────────────────────────────────────────── -->
+<!-- ── Row 1: KPI cards ───────────────────────────────────────── -->
 <div class="grid-top">
   <div class="card">
     <div class="card-label">Balance</div>
@@ -94,34 +119,29 @@
   </div>
 </div>
 
-<!-- ── Price + London countdown ──────────────────────────────── -->
-<div class="row2">
-  <div class="card">
-    <h2>Live Price — EURUSD</h2>
-    <div class="price-row">
-      <div class="price-item">
-        <span class="price-label">BID</span>
-        <span class="price-value" id="val-bid">—</span>
-      </div>
-      <div class="price-item">
-        <span class="price-label">ASK</span>
-        <span class="price-value" id="val-ask">—</span>
-      </div>
-      <div class="price-item">
-        <span class="price-label">SPREAD</span>
-        <span class="price-value" id="val-spread">—</span>
-      </div>
+<!-- ── Row 2: Live Price (full-width) ─────────────────────────── -->
+<div class="row-price card">
+  <h2>Live Price — EURUSD</h2>
+  <div class="price-row">
+    <div class="price-item">
+      <span class="price-label">BID</span>
+      <span class="price-value" id="val-bid">—</span>
     </div>
-  </div>
-  <div class="card">
-    <h2>London Open Countdown</h2>
-    <div class="countdown" id="val-countdown">00:00:00</div>
-    <div style="font-size:11px;color:#8b949e;margin-top:6px">Next 07:00 UTC session open</div>
+    <div class="price-item">
+      <span class="price-label">ASK</span>
+      <span class="price-value" id="val-ask">—</span>
+    </div>
+    <div class="price-item">
+      <span class="price-label">SPREAD</span>
+      <span class="price-value" id="val-spread">—</span>
+    </div>
   </div>
 </div>
 
-<!-- ── Bot status + Risk ──────────────────────────────────────── -->
-<div class="row2">
+<!-- ── Row 3: Bot status+countdown | Risk | News ──────────────── -->
+<div class="row-mid">
+
+  <!-- Col 1: Bot status + London countdown -->
   <div class="card">
     <h2>Bot Status</h2>
     <div class="info-row">
@@ -140,7 +160,15 @@
       <span class="info-label">Last Signal</span>
       <span class="info-value" id="val-signal">—</span>
     </div>
+    <div style="margin-top:14px">
+      <div style="font-size:10px;color:#8b949e;text-transform:uppercase;
+      letter-spacing:.06em;margin-bottom:6px">London Open Countdown</div>
+      <div class="countdown" id="val-countdown">00:00:00</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:4px">Next 07:00 UTC session</div>
+    </div>
   </div>
+
+  <!-- Col 2: Risk monitor -->
   <div class="card">
     <h2>Risk Monitor</h2>
     <div class="risk-row">
@@ -158,9 +186,18 @@
       Risk Status: <span id="val-safe" style="font-weight:600">—</span>
     </div>
   </div>
+
+  <!-- Col 3: News panel (compact, max-height 220px) -->
+  <div class="card" style="max-height:220px;overflow-y:auto">
+    <h2>High-Impact News — EUR &amp; USD</h2>
+    <div id="news-list">
+      <div style="color:#8b949e;font-size:12px;padding:8px 0">Loading…</div>
+    </div>
+  </div>
+
 </div>
 
-<!-- ── Equity curve ──────────────────────────────────────────── -->
+<!-- ── Row 4: Equity curve ────────────────────────────────────── -->
 <div class="row-full card">
   <h2>Equity Curve (30 days)</h2>
   <div class="chart-wrap">
@@ -168,20 +205,15 @@
   </div>
 </div>
 
-<!-- ── Open positions ────────────────────────────────────────── -->
+<!-- ── Row 5: Open positions ──────────────────────────────────── -->
 <div class="row-full card">
   <h2>Open Positions</h2>
-  <table>
-    <thead><tr>
-      <th>Direction</th><th>Entry</th><th>SL</th><th>TP</th><th>Lots</th>
-    </thead>
-    <tbody id="tbl-positions">
-      <tr><td colspan="5" style="color:#8b949e;text-align:center;padding:16px">No open positions</td></tr>
-    </tbody>
-  </table>
+  <div id="positions-container">
+    <div style="color:#8b949e;font-size:12px;text-align:center;padding:20px">Loading…</div>
+  </div>
 </div>
 
-<!-- ── Trade history ─────────────────────────────────────────── -->
+<!-- ── Row 6: Trade history ───────────────────────────────────── -->
 <div class="row-full card">
   <h2>Trade History</h2>
   <table>
@@ -194,102 +226,13 @@
   </table>
 </div>
 
-<!-- ── High-impact news ───────────────────────────────────────── -->
-<div class="row-full card">
-  <h2>High-Impact News — EUR &amp; USD (This Week)</h2>
-  <div id="news-list"><div style="color:#8b949e;font-size:12px;padding:8px 0">Loading…</div></div>
-</div>
-
-<!-- ── Bot logs ───────────────────────────────────────────────── -->
+<!-- ── Row 7: Bot logs ────────────────────────────────────────── -->
 <div class="row-full card">
   <h2>Bot Logs</h2>
   <div id="log-list"><div style="color:#8b949e;font-size:12px">Loading…</div></div>
 </div>
 
 <script>
-// ── News time helpers ─────────────────────────────────────────────────
-function toUTC(utcDateStr) {
-  const d = new Date(utcDateStr);
-  return d.getUTCHours().toString().padStart(2,'0') + ':'
-       + d.getUTCMinutes().toString().padStart(2,'0') + ' UTC';
-}
-
-function toGST(utcDateStr) {
-  const d = new Date(utcDateStr);
-  const gst = new Date(d.getTime() + 4 * 60 * 60 * 1000);
-  return gst.getUTCHours().toString().padStart(2,'0') + ':'
-       + gst.getUTCMinutes().toString().padStart(2,'0') + ' GST';
-}
-
-function getCountdown(utcDateStr) {
-  const diffMs   = new Date(utcDateStr) - new Date();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < -60)  return { text: '✅ Passed',                       color: '#8b949e' };
-  if (diffMins <   0)  return { text: '🔴 LIVE NOW',                     color: '#f85149' };
-  if (diffMins <  30)  return { text: '⛔ BLACKOUT ' + diffMins + 'm',   color: '#f85149' };
-  if (diffMins <  60)  return { text: 'in ' + diffMins + 'm',            color: '#d29922' };
-  const h = Math.floor(diffMins / 60), m = diffMins % 60;
-  if (h < 24)          return { text: 'in ' + h + 'h ' + m + 'm',       color: '#e6edf3' };
-  return               { text: 'Tomorrow',                               color: '#8b949e' };
-}
-
-// Currency flag map
-const _FLAGS = { USD: '🇺🇸', EUR: '🇪🇺' };
-
-// Stored news events for live countdown updates
-let _newsEvents = [];
-
-function renderNews(events) {
-  _newsEvents = events;
-  const el = document.getElementById('news-list');
-  if (!el) return;
-  if (!events || events.length === 0) {
-    el.innerHTML = '<div style="color:#8b949e;font-size:12px;padding:8px 0">No high-impact news this week</div>';
-    return;
-  }
-  el.innerHTML = events.map((e, i) => {
-    const cd  = getCountdown(e.event_time);
-    const flag = _FLAGS[e.currency] || '🌐';
-    const fc  = e.forecast ? '<span style="font-size:11px;color:#8b949e">Forecast: <span style="color:#e6edf3">' + e.forecast + '</span></span>' : '';
-    const pr  = e.previous ? '<span style="font-size:11px;color:#8b949e">Previous: <span style="color:#e6edf3">' + e.previous + '</span></span>' : '';
-    return '<div style="background:#0d1117;border:0.5px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-        + '<div style="display:flex;align-items:center;gap:8px">'
-          + '<span style="font-size:18px">' + flag + '</span>'
-          + '<span style="font-size:13px;font-weight:500;color:#e6edf3">' + (e.title||'') + '</span>'
-          + '<span style="background:#da363622;color:#f85149;border:0.5px solid #da3633;padding:2px 7px;border-radius:4px;font-size:10px">HIGH</span>'
-        + '</div>'
-        + '<span id="cd-' + i + '" style="font-size:12px;font-weight:500;color:' + cd.color + '">' + cd.text + '</span>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:' + (fc||pr ? '10px' : '0') + '">'
-        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
-          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">UTC</div>'
-          + '<div style="font-size:14px;font-weight:500;color:#e6edf3">' + toUTC(e.event_time) + '</div>'
-        + '</div>'
-        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
-          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">GST (UAE)</div>'
-          + '<div style="font-size:14px;font-weight:500;color:#58a6ff">' + toGST(e.event_time) + '</div>'
-        + '</div>'
-        + '<div style="text-align:center;background:#161b22;border-radius:6px;padding:8px">'
-          + '<div style="font-size:10px;color:#8b949e;margin-bottom:2px">Countdown</div>'
-          + '<div id="cd-box-' + i + '" style="font-size:13px;font-weight:500;color:' + cd.color + '">' + cd.text + '</div>'
-        + '</div>'
-      + '</div>'
-      + ((fc || pr) ? '<div style="display:flex;gap:16px">' + fc + pr + '</div>' : '')
-      + '</div>';
-  }).join('');
-}
-
-function updateNewsCountdowns() {
-  _newsEvents.forEach((e, i) => {
-    const cd  = getCountdown(e.event_time);
-    const inline = document.getElementById('cd-' + i);
-    const box    = document.getElementById('cd-box-' + i);
-    if (inline) { inline.textContent = cd.text; inline.style.color = cd.color; }
-    if (box)    { box.textContent    = cd.text; box.style.color    = cd.color; }
-  });
-}
-
 // ── Fetch with cache-busting ──────────────────────────────────────────
 const API_BASE = '';
 
@@ -304,7 +247,7 @@ async function get(path) {
   }
 }
 
-// ── RULE 2+3: Safe setters ────────────────────────────────────────────
+// ── Safe setters ──────────────────────────────────────────────────────
 function set(id, value, fallback='—') {
   const el = document.getElementById(id);
   if (!el) return;
@@ -317,7 +260,7 @@ function setColor(id, value) {
   el.style.color = Number(value) >= 0 ? '#3fb950' : '#f85149';
 }
 
-// ── RULE 5: Chart ─────────────────────────────────────────────────────
+// ── Chart ─────────────────────────────────────────────────────────────
 let chart = null;
 function drawChart(labels, data) {
   const ctx = document.getElementById('equity-canvas').getContext('2d');
@@ -351,6 +294,198 @@ function drawChart(labels, data) {
       }
     }
   });
+}
+
+// ── London countdown ──────────────────────────────────────────────────
+function updateCountdown() {
+  const now  = new Date();
+  const utcH = now.getUTCHours();
+  const utcM = now.getUTCMinutes();
+  const utcS = now.getUTCSeconds();
+  const total = utcH*3600 + utcM*60 + utcS;
+  const london = 7*3600;
+  let diff = london - total;
+  if (diff <= 0) diff += 86400;
+  const h = String(Math.floor(diff/3600)).padStart(2,'0');
+  const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+  const sc = String(diff%60).padStart(2,'0');
+  set('val-countdown', h + ':' + m + ':' + sc);
+}
+
+// ── Open positions (live card, updates every 5s) ──────────────────────
+async function updatePositions() {
+  const pos = await get('/api/positions');
+  const price = await get('/api/price');
+  const container = document.getElementById('positions-container');
+
+  if (!pos || !pos.positions || pos.positions.length === 0) {
+    container.innerHTML = '<div style="color:#8b949e;font-size:12px;'
+      + 'text-align:center;padding:20px">No open positions</div>';
+    return;
+  }
+
+  const bid = price ? Number(price.bid) : 0;
+
+  container.innerHTML = pos.positions.map(p => {
+    const entry = Number(p.entry || p.entry_price);
+    const sl    = Number(p.stop_loss || p.sl);
+    const tp    = Number(p.take_profit || p.tp);
+    const lots  = Number(p.lot_size || p.lot || 0.34);
+    const dir   = p.direction || 'BUY';
+
+    // Calculate live P&L
+    const currentPrice = bid || entry;
+    const rawPips = dir === 'BUY'
+      ? (currentPrice - entry) / 0.0001
+      : (entry - currentPrice) / 0.0001;
+    const pips = rawPips.toFixed(1);
+    const pnl  = (rawPips * 10 * lots).toFixed(2);
+    const pnlColor = Number(pnl) >= 0 ? '#3fb950' : '#f85149';
+    const pnlSign  = Number(pnl) >= 0 ? '+' : '';
+
+    // Progress bar (how far from SL to TP)
+    const totalRange = tp - sl;
+    const progress = dir === 'BUY'
+      ? Math.max(0, Math.min(100, ((currentPrice - sl) / totalRange * 100)))
+      : Math.max(0, Math.min(100, ((sl - currentPrice) / totalRange * 100)));
+    const progressColor = progress > 50 ? '#3fb950' : progress > 25 ? '#d29922' : '#f85149';
+
+    // Time
+    const openedAt = p.opened_at || p.date || '';
+    const utcTime = openedAt
+      ? new Date(openedAt).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',timeZone:'UTC'}) + ' UTC'
+      : '—';
+    const gstTime = openedAt
+      ? new Date(openedAt).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Dubai'}) + ' GST'
+      : '—';
+    const dirColor = dir === 'BUY' ? '#3fb950' : '#f85149';
+    const dirEmoji = dir === 'BUY' ? '📈' : '📉';
+
+    return `
+    <div style="background:#161b22;border:0.5px solid #30363d;
+    border-radius:8px;padding:14px;margin-bottom:8px">
+
+      <div style="display:flex;justify-content:space-between;
+      align-items:center;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span>${dirEmoji}</span>
+          <span style="color:${dirColor};font-weight:500;font-size:14px">${dir}</span>
+          <span style="color:#8b949e;font-size:13px">EURUSD</span>
+          <span style="background:#1f6feb22;color:#58a6ff;border:0.5px solid #1f6feb;
+          padding:2px 8px;border-radius:4px;font-size:10px">OPEN</span>
+        </div>
+        <span style="color:#8b949e;font-size:12px">${lots} lots</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;
+      gap:8px;margin-bottom:12px">
+        <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#8b949e;margin-bottom:4px">ENTRY</div>
+          <div style="font-size:14px;font-weight:500;color:#e6edf3">
+            ${entry.toFixed(5)}
+          </div>
+        </div>
+        <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#8b949e;margin-bottom:4px">CURRENT</div>
+          <div style="font-size:14px;font-weight:500;color:#e6edf3">
+            ${currentPrice.toFixed(5)}
+          </div>
+        </div>
+        <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#8b949e;margin-bottom:4px">UNREALIZED P&amp;L</div>
+          <div style="font-size:14px;font-weight:500;color:${pnlColor}">
+            ${pnlSign}$${Math.abs(pnl)} (${pips}p)
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;
+      gap:8px;margin-bottom:12px">
+        <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#f85149;margin-bottom:4px">STOP LOSS</div>
+          <div style="font-size:13px;font-weight:500;color:#f85149">
+            ${sl.toFixed(5)}
+          </div>
+        </div>
+        <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#3fb950;margin-bottom:4px">TAKE PROFIT</div>
+          <div style="font-size:13px;font-weight:500;color:#3fb950">
+            ${tp.toFixed(5)}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;
+        font-size:10px;color:#8b949e;margin-bottom:4px">
+          <span>SL ${sl.toFixed(5)}</span>
+          <span>Progress ${progress.toFixed(0)}%</span>
+          <span>TP ${tp.toFixed(5)}</span>
+        </div>
+        <div style="height:6px;background:#21262d;border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${progress}%;
+          background:${progressColor};border-radius:3px;
+          transition:width 0.5s"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;
+      font-size:11px;color:#8b949e">
+        <span>RSI: <span style="color:#e6edf3">${p.rsi || '—'}</span></span>
+        <span>Opened: ${utcTime} · ${gstTime}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── News (compact rows, updates every 30s) ────────────────────────────
+async function updateNews() {
+  const n = await get('/api/news');
+  const el = document.getElementById('news-list');
+
+  const events = Array.isArray(n) ? n : (n?.events || []);
+
+  if (!events.length) {
+    el.innerHTML = '<div style="color:#8b949e;font-size:12px;'
+      + 'padding:8px 0">No high-impact news this week</div>';
+    return;
+  }
+
+  el.innerHTML = events.slice(0, 5).map((e) => {
+    const flag = e.currency === 'USD' ? '🇺🇸' : '🇪🇺';
+    const eventTime = new Date(e.event_time || e.date);
+
+    const utcStr = eventTime.toLocaleTimeString('en', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+    });
+    const gstStr = eventTime.toLocaleTimeString('en', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai'
+    });
+
+    const mins = Number(e.minutes_until || 0);
+    let countdown, countdownColor;
+    if (mins < 0)        { countdown = '✅ Done';                   countdownColor = '#8b949e'; }
+    else if (mins < 30)  { countdown = '⛔ ' + mins + 'm';          countdownColor = '#f85149'; }
+    else if (mins < 60)  { countdown = mins + 'm';                  countdownColor = '#d29922'; }
+    else if (mins < 1440){ countdown = Math.floor(mins/60) + 'h ' + (mins%60) + 'm';
+                           countdownColor = '#e6edf3'; }
+    else                 { countdown = 'Tomorrow';                  countdownColor = '#8b949e'; }
+
+    const rowBg = (mins < 30 && mins >= 0)
+      ? 'background:#da363611;border:0.5px solid #da363644;'
+      : 'border-bottom:0.5px solid #21262d;';
+
+    return `<div style="${rowBg}display:grid;
+    grid-template-columns:20px 1fr 70px 70px 60px;
+    gap:8px;align-items:center;padding:7px 4px;font-size:12px">
+      <span>${flag}</span>
+      <span style="color:#e6edf3">${e.title || e.event || '—'}</span>
+      <span style="color:#8b949e;text-align:center">${utcStr} UTC</span>
+      <span style="color:#58a6ff;text-align:center">${gstStr} GST</span>
+      <span style="color:${countdownColor};text-align:right;
+      font-weight:500">${countdown}</span>
+    </div>`;
+  }).join('');
 }
 
 // ── Main refresh ──────────────────────────────────────────────────────
@@ -400,11 +535,7 @@ async function refresh() {
     if(safeEl) safeEl.style.color = r.safe_to_trade ? '#3fb950' : '#f85149';
   }
 
-  // NEWS — raw array sorted by event_time; renderNews handles display
-  const n = await get('/api/news');
-  renderNews(Array.isArray(n) ? n : []);
-
-  // TRADES — fields: date, direction, entry, exit, pnl, outcome
+  // TRADES
   const tr = await get('/api/trades');
   const trEl = document.getElementById('tbl-trades');
   if (trEl && tr && tr.trades && tr.trades.length > 0) {
@@ -427,23 +558,7 @@ async function refresh() {
     trEl.innerHTML = '<tr><td colspan="6" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>';
   }
 
-  // POSITIONS — fields: direction, entry, sl, tp, lot
-  const pos = await get('/api/positions');
-  const posEl = document.getElementById('tbl-positions');
-  if (posEl && pos && pos.positions && pos.positions.length > 0) {
-    posEl.innerHTML = pos.positions.map(p => {
-      return '<tr>'
-        +'<td>'+(p.direction||'—')+'</td>'
-        +'<td>'+(p.entry?Number(p.entry).toFixed(5):'—')+'</td>'
-        +'<td>'+(p.sl?Number(p.sl).toFixed(5):'—')+'</td>'
-        +'<td>'+(p.tp?Number(p.tp).toFixed(5):'—')+'</td>'
-        +'<td>'+(p.lot?Number(p.lot).toFixed(2):'—')+'</td></tr>';
-    }).join('');
-  } else if(posEl) {
-    posEl.innerHTML = '<tr><td colspan="5" style="color:#8b949e;text-align:center;padding:16px">No open positions</td></tr>';
-  }
-
-  // EQUITY — fields: ts, balance
+  // EQUITY
   const eq = await get('/api/equity');
   if (eq && eq.snapshots && eq.snapshots.length > 0) {
     drawChart(
@@ -452,7 +567,7 @@ async function refresh() {
     );
   }
 
-  // LOGS — fields: ts, level, message
+  // LOGS
   const lg = await get('/api/logs');
   const lgEl = document.getElementById('log-list');
   if (lgEl && lg && lg.logs && lg.logs.length > 0) {
@@ -473,37 +588,24 @@ async function refresh() {
   document.getElementById('last-update').textContent = 'Updated: ' + new Date().toLocaleTimeString();
 }
 
-// ── RULE 6: London countdown ─────────────────────────────────────────
-function updateCountdown() {
-  const now  = new Date();
-  const utcH = now.getUTCHours();
-  const utcM = now.getUTCMinutes();
-  const utcS = now.getUTCSeconds();
-  const total = utcH*3600 + utcM*60 + utcS;
-  const london = 7*3600;
-  let diff = london - total;
-  if (diff <= 0) diff += 86400;
-  const h = String(Math.floor(diff/3600)).padStart(2,'0');
-  const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
-  const sc = String(diff%60).padStart(2,'0');
-  set('val-countdown', h + ':' + m + ':' + sc);
-}
-
-// ── RULE 7: Start everything ─────────────────────────────────────────
+// ── Start everything ──────────────────────────────────────────────────
 refresh();
+updatePositions();
+updateNews();
 updateCountdown();
 
-setInterval(updateCountdown, 1000);         // London countdown: every 1s
-setInterval(updateNewsCountdowns, 30000);   // News countdowns: every 30s
+setInterval(updateCountdown,  1000);   // London countdown: every 1s
+setInterval(updatePositions,  5000);   // Positions: every 5s
+setInterval(updateNews,      30000);   // News: every 30s
 
 setInterval(() => get('/api/price').then(p => {
   if (p) {
     set('val-bid', p.bid ? Number(p.bid).toFixed(5) : '—');
     set('val-ask', p.ask ? Number(p.ask).toFixed(5) : '—');
   }
-}), 5000);                                  // Price: every 5s
+}), 5000);                             // Price: every 5s
 
-setInterval(refresh, 30000);               // Full refresh: every 30s
+setInterval(refresh, 30000);           // Full refresh: every 30s
 </script>
 
 </body>
