@@ -286,32 +286,55 @@ class PaperFeed:
             return False  # safe default: don't block trading on DB error
 
     def _restore_positions(self) -> None:
-        """On startup, reload any open trades from DB into in-memory state."""
+        """On startup, reload any open trades from DB into in-memory state.
+
+        If more than one open trade exists (duplicate from a crash/restart),
+        keep the newest and cancel the rest automatically.
+        """
         try:
-            open_trades = get_db().get_open_trades()
-            if open_trades:
-                t = open_trades[0]
-                self._open_position = {
-                    "trade_id": str(t["id"]),
-                    "direction": t["direction"],
-                    "entry":     float(t["entry_price"]),
-                    "sl":        float(t["stop_loss"]),
-                    "tp":        float(t["take_profit"]),
-                    "lot":       float(t["lot_size"]),
-                    "sl_pips":   abs(float(t["entry_price"]) - float(t["stop_loss"])) / _PIP,
-                    "rsi":       t.get("rsi"),
-                    "opened_at": str(t.get("opened_at", "")),
-                    "date":      str(t.get("opened_at", ""))[:10],
-                }
-                logger.info("Restored {} open position(s) from DB", len(open_trades))
-                for trade in open_trades:
-                    logger.info(
-                        "  Restored: {} entry={} sl={} tp={}",
-                        trade["direction"], trade["entry_price"],
-                        trade["stop_loss"], trade["take_profit"],
-                    )
-            else:
+            db = get_db()
+            open_trades = db.get_open_trades()
+
+            if not open_trades:
                 logger.info("No open positions to restore")
+                return
+
+            # Auto-cancel duplicates — keep only the most recent
+            if len(open_trades) > 1:
+                sorted_trades = sorted(
+                    open_trades,
+                    key=lambda x: str(x.get("opened_at", "")),
+                    reverse=True,
+                )
+                open_trades = sorted_trades[:1]
+                duplicates  = sorted_trades[1:]
+                logger.warning(
+                    "Found {} open trade(s) in DB — cancelling {} duplicate(s)",
+                    len(sorted_trades), len(duplicates),
+                )
+                for dup in duplicates:
+                    dup_id = str(dup["id"])
+                    db.update_trade(dup_id, {"status": "cancelled", "result": "cancelled"})
+                    logger.info("  Cancelled duplicate trade {}", dup_id[:8])
+
+            t = open_trades[0]
+            self._open_position = {
+                "trade_id": str(t["id"]),
+                "direction": t["direction"],
+                "entry":     float(t["entry_price"]),
+                "sl":        float(t["stop_loss"]),
+                "tp":        float(t["take_profit"]),
+                "lot":       float(t["lot_size"]),
+                "sl_pips":   abs(float(t["entry_price"]) - float(t["stop_loss"])) / _PIP,
+                "rsi":       t.get("rsi"),
+                "opened_at": str(t.get("opened_at", "")),
+                "date":      str(t.get("opened_at", ""))[:10],
+            }
+            logger.info("Restored 1 open position from DB")
+            logger.info(
+                "  Restored: {} entry={} sl={} tp={}",
+                t["direction"], t["entry_price"], t["stop_loss"], t["take_profit"],
+            )
         except Exception as exc:
             logger.error("Failed to restore positions: {}", exc)
 
