@@ -251,7 +251,7 @@ class Database:
         pips: float,
         result: str,
     ) -> None:
-        """Mark a trade as closed with exit data."""
+        """Mark a trade as closed with exit data, then refresh bot_stats."""
         try:
             self._run(
                 """
@@ -276,6 +276,56 @@ class Database:
             logger.info("DB: trade {} closed ({})", trade_id[:8], result)
         except Exception as exc:
             logger.error("DB close_trade failed: {}", exc)
+            return
+        self._recalculate_stats()
+
+    def _recalculate_stats(self) -> None:
+        """Recompute bot_stats from all closed trades and upsert the single row."""
+        try:
+            row = self._run(
+                """
+                SELECT
+                    COUNT(*)                                                    AS total,
+                    SUM(CASE WHEN result = 'win'  THEN 1 ELSE 0 END)           AS wins,
+                    SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)           AS losses,
+                    COALESCE(SUM(pnl), 0)                                      AS total_pnl,
+                    COALESCE(SUM(CASE WHEN closed_at::date = CURRENT_DATE
+                                 THEN pnl ELSE 0 END), 0)                      AS today_pnl
+                FROM trades
+                WHERE status = 'closed'
+                  AND result IN ('win', 'loss')
+                """,
+                fetch="one",
+            )
+            if not row:
+                return
+            total     = int(row["total"] or 0)
+            wins      = int(row["wins"] or 0)
+            losses    = int(row["losses"] or 0)
+            total_pnl = float(row["total_pnl"] or 0)
+            today_pnl = float(row["today_pnl"] or 0)
+            new_balance = _INITIAL_BALANCE + total_pnl
+            self._run(
+                """
+                INSERT INTO bot_stats
+                    (id, current_balance, total_trades, wins, losses, today_pnl, last_updated)
+                VALUES (1, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE SET
+                    current_balance = EXCLUDED.current_balance,
+                    total_trades    = EXCLUDED.total_trades,
+                    wins            = EXCLUDED.wins,
+                    losses          = EXCLUDED.losses,
+                    today_pnl       = EXCLUDED.today_pnl,
+                    last_updated    = EXCLUDED.last_updated
+                """,
+                (new_balance, total, wins, losses, today_pnl),
+            )
+            logger.info(
+                "Stats recalculated | trades={} wins={} losses={} balance=${:.2f}",
+                total, wins, losses, new_balance,
+            )
+        except Exception as exc:
+            logger.error("DB _recalculate_stats failed: {}", exc)
 
     def get_open_trades(self) -> list[dict[str, Any]]:
         """Return all trades with status='open'."""
@@ -303,11 +353,12 @@ class Database:
             return []
 
     def get_all_trades(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Return most-recent closed trades (newest first)."""
+        """Return most-recent trades of any status (newest first)."""
         try:
             return self._run(
-                """SELECT * FROM trades WHERE status = 'closed'
-                   ORDER BY closed_at DESC LIMIT %s""",
+                """SELECT * FROM trades
+                   WHERE status IN ('closed', 'open', 'cancelled')
+                   ORDER BY opened_at DESC LIMIT %s""",
                 (limit,),
                 fetch="all",
             ) or []
