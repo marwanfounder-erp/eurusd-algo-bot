@@ -295,7 +295,7 @@ class Database:
                 FROM trades
                 WHERE status = 'closed'
                   AND result IN ('win', 'loss')
-                  AND mode = 'PAPER'
+                  AND UPPER(mode) = 'PAPER'
                 """,
                 fetch="one",
             )
