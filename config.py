@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     min_range_pips: float = 10.0
     max_range_pips: float = 50.0
     breakout_buffer_pips: float = 2.0
-    rr_ratio: float = 2.0               # 1:2 risk/reward
+    rr_ratio: float = 1.5               # 1:1.5 risk/reward
     rsi_period: int = 14
 
     # News filter

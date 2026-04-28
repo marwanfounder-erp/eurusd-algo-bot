@@ -340,7 +340,13 @@ class PaperFeed:
             logger.error("Failed to restore positions: {}", exc)
 
     def monitor_positions(self) -> None:
-        """Check every open DB trade against current price; close on TP/SL hit."""
+        """Check every open DB trade against current price.
+
+        Order of checks per trade:
+          1. Time-based exit   — close after 20 hours at current price
+          2. TP / SL hit       — close at target or stop
+          3. Breakeven stop    — move SL to entry+2pips once price is halfway to TP
+        """
         db = get_db()
         open_trades = db.get_open_trades()
         if not open_trades:
@@ -361,6 +367,32 @@ class PaperFeed:
             lot       = float(trade["lot_size"])
             trade_id  = str(trade["id"])  # UUID → str for slicing and DB calls
 
+            # ── 1. Time-based exit (20-hour limit) ────────────────────
+            opened_at_raw = trade.get("opened_at")
+            if opened_at_raw:
+                opened_at = datetime.fromisoformat(str(opened_at_raw))
+                if opened_at.tzinfo is None:
+                    opened_at = opened_at.replace(tzinfo=timezone.utc)
+                hours_open = (datetime.now(timezone.utc) - opened_at).total_seconds() / 3600
+                if hours_open >= 20:
+                    pips = (
+                        (current_price - entry) if direction == "BUY" else (entry - current_price)
+                    ) / _PIP
+                    pnl = pips * 10 * lot
+                    result = "win" if pnl > 0 else "loss"
+                    db.close_trade(trade_id, current_price, round(pnl, 2), round(pips, 1), result)
+                    self._balance += pnl
+                    self._open_position = None
+                    logger.info(
+                        "Trade {} CLOSED (time limit {:.1f}h) @ {:.5f} pnl=${:.2f}",
+                        trade_id[:8], hours_open, current_price, pnl,
+                    )
+                    self._notifier.send(
+                        f"⏰ Trade closed (time limit) | P&L: ${pnl:.2f} | {hours_open:.1f}h open"
+                    )
+                    continue
+
+            # ── 2. TP / SL hit ────────────────────────────────────────
             if direction == "BUY":
                 if current_price >= tp:
                     pips = (tp - entry) / _PIP
@@ -379,11 +411,26 @@ class PaperFeed:
                     logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
                     self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
                 else:
+                    # ── 3. Breakeven — only when SL is still below entry ──
+                    if sl < entry:
+                        sl_risk_pips = (entry - sl) / _PIP
+                        be_trigger = entry + sl_risk_pips * 0.5 * _PIP
+                        if current_price >= be_trigger:
+                            breakeven_sl = round(entry + 2 * _PIP, 5)
+                            db.update_trade(trade_id, {"stop_loss": breakeven_sl})
+                            if self._open_position and self._open_position.get("trade_id") == trade_id:
+                                self._open_position["sl"] = breakeven_sl
+                            logger.info(
+                                "Trade {} SL moved to breakeven {:.5f}", trade_id[:8], breakeven_sl
+                            )
+                            self._notifier.send("🔒 SL moved to breakeven — trade protected")
+
                     unrealized = (current_price - entry) / _PIP
                     logger.info(
                         "Trade {} OPEN | price={:.5f} unrealized={:.1f}pips",
                         trade_id[:8], current_price, unrealized,
                     )
+
             elif direction == "SELL":
                 if current_price <= tp:
                     pips = (entry - tp) / _PIP
@@ -402,6 +449,20 @@ class PaperFeed:
                     logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
                     self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
                 else:
+                    # ── 3. Breakeven — only when SL is still above entry ──
+                    if sl > entry:
+                        sl_risk_pips = (sl - entry) / _PIP
+                        be_trigger = entry - sl_risk_pips * 0.5 * _PIP
+                        if current_price <= be_trigger:
+                            breakeven_sl = round(entry - 2 * _PIP, 5)
+                            db.update_trade(trade_id, {"stop_loss": breakeven_sl})
+                            if self._open_position and self._open_position.get("trade_id") == trade_id:
+                                self._open_position["sl"] = breakeven_sl
+                            logger.info(
+                                "Trade {} SL moved to breakeven {:.5f}", trade_id[:8], breakeven_sl
+                            )
+                            self._notifier.send("🔒 SL moved to breakeven — trade protected")
+
                     unrealized = (entry - current_price) / _PIP
                     logger.info(
                         "Trade {} OPEN | price={:.5f} unrealized={:.1f}pips",
