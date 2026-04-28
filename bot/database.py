@@ -280,7 +280,8 @@ class Database:
         self._recalculate_stats()
 
     def _recalculate_stats(self) -> None:
-        """Recompute bot_stats from all closed trades and upsert the single row."""
+        """Recompute bot_stats from real paper trades only and upsert the single row."""
+        _REAL_START = 10_000.0
         try:
             row = self._run(
                 """
@@ -294,31 +295,34 @@ class Database:
                 FROM trades
                 WHERE status = 'closed'
                   AND result IN ('win', 'loss')
+                  AND mode = 'PAPER'
                 """,
                 fetch="one",
             )
             if not row:
                 return
-            total     = int(row["total"] or 0)
-            wins      = int(row["wins"] or 0)
-            losses    = int(row["losses"] or 0)
-            total_pnl = float(row["total_pnl"] or 0)
-            today_pnl = float(row["today_pnl"] or 0)
-            new_balance = _INITIAL_BALANCE + total_pnl
+            total       = int(row["total"] or 0)
+            wins        = int(row["wins"] or 0)
+            losses      = int(row["losses"] or 0)
+            total_pnl   = float(row["total_pnl"] or 0)
+            today_pnl   = float(row["today_pnl"] or 0)
+            new_balance = _REAL_START + total_pnl
             self._run(
                 """
                 INSERT INTO bot_stats
-                    (id, current_balance, total_trades, wins, losses, today_pnl, last_updated)
-                VALUES (1, %s, %s, %s, %s, %s, NOW())
+                    (id, starting_balance, current_balance, total_trades,
+                     wins, losses, today_pnl, last_updated)
+                VALUES (1, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (id) DO UPDATE SET
-                    current_balance = EXCLUDED.current_balance,
-                    total_trades    = EXCLUDED.total_trades,
-                    wins            = EXCLUDED.wins,
-                    losses          = EXCLUDED.losses,
-                    today_pnl       = EXCLUDED.today_pnl,
-                    last_updated    = EXCLUDED.last_updated
+                    starting_balance = EXCLUDED.starting_balance,
+                    current_balance  = EXCLUDED.current_balance,
+                    total_trades     = EXCLUDED.total_trades,
+                    wins             = EXCLUDED.wins,
+                    losses           = EXCLUDED.losses,
+                    today_pnl        = EXCLUDED.today_pnl,
+                    last_updated     = EXCLUDED.last_updated
                 """,
-                (new_balance, total, wins, losses, today_pnl),
+                (_REAL_START, new_balance, total, wins, losses, today_pnl),
             )
             logger.info(
                 "Stats recalculated | trades={} wins={} losses={} balance=${:.2f}",

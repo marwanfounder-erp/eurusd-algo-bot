@@ -244,36 +244,35 @@ def api_status():  # type: ignore[return]
     db = get_db()
     stats = db.get_stats()
 
-    balance     = float(stats.get("current_balance", _INITIAL_BAL))
+    # Starting balance is always 10 000 — never read from bot_stats
+    # (the seeded row had wrong values)
+    starting    = 10_000.0
+    balance     = float(stats.get("current_balance", starting))
     wins        = int(stats.get("wins", 0))
     losses      = int(stats.get("losses", 0))
     total       = wins + losses
     win_rate    = round(wins / total * 100, 1) if total else 0.0
-    total_ret   = round((balance - _INITIAL_BAL) / _INITIAL_BAL * 100, 2)
-
-    today_pnl = sum(
-        float(t.get("pnl") or 0)
-        for t in db.get_today_trades()
-    )
+    total_ret   = round((balance - starting) / starting * 100, 2)
+    today_pnl   = float(stats.get("today_pnl", 0))
 
     return jsonify({
-        "balance":          round(balance, 2),
-        "starting_balance": _INITIAL_BAL,
-        "today_pnl":        round(today_pnl, 2),
-        "today_pnl_pct":    round(today_pnl / _INITIAL_BAL * 100, 2),
-        "total_return_pct": total_ret,
-        "total_trades":     total,
-        "wins":             wins,
-        "losses":           losses,
-        "win_rate":         win_rate,
-        "mode":             _bot_state.get("mode", "paper").upper(),
-        "feed":             _bot_state.get("feed_type", "PaperFeed"),
-        "status":           "Running" if _bot_state.get("running") else "Stopped",
-        "running":          _bot_state.get("running", False),
-        "last_signal":      _bot_state.get("last_signal_ts"),
-        "running_since":    _bot_state.get("start_ts"),
+        "balance":           round(balance, 2),
+        "starting_balance":  starting,
+        "today_pnl":         round(today_pnl, 2),
+        "today_pnl_pct":     round(today_pnl / starting * 100, 2),
+        "total_return_pct":  total_ret,
+        "total_trades":      total,
+        "wins":              wins,
+        "losses":            losses,
+        "win_rate":          win_rate,
+        "mode":              _bot_state.get("mode", "paper").upper(),
+        "feed":              _bot_state.get("feed_type", "PaperFeed"),
+        "status":            "Running" if _bot_state.get("running") else "Stopped",
+        "running":           _bot_state.get("running", False),
+        "last_signal":       _bot_state.get("last_signal_ts"),
+        "running_since":     _bot_state.get("start_ts"),
         "seconds_to_london": _seconds_to_london(),
-        "server_time_utc":  datetime.now(tz=timezone.utc).isoformat(),
+        "server_time_utc":   datetime.now(tz=timezone.utc).isoformat(),
     })
 
 
