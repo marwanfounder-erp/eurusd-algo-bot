@@ -405,11 +405,14 @@ class PaperFeed:
                 elif current_price <= sl:
                     pips = (entry - sl) / _PIP
                     pnl  = -(pips * 10 * lot)
-                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), "loss")
+                    result = "win" if pnl > 0 else "loss"
+                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), result)
                     self._balance += pnl
                     self._open_position = None
-                    logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
-                    self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
+                    logger.info("Trade {} CLOSED {} @ {} pnl=${:.2f}", trade_id[:8], result.upper(), sl, pnl)
+                    self._notifier.send(
+                        f"{'✅ WIN' if result == 'win' else '❌ LOSS'} ${pnl:+.2f} ({pips:.1f} pips)"
+                    )
                 else:
                     # ── 3. Breakeven — only when SL is still below entry ──
                     if sl < entry:
@@ -443,11 +446,14 @@ class PaperFeed:
                 elif current_price >= sl:
                     pips = (sl - entry) / _PIP
                     pnl  = -(pips * 10 * lot)
-                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), "loss")
+                    result = "win" if pnl > 0 else "loss"
+                    db.close_trade(trade_id, sl, round(pnl, 2), round(-pips, 1), result)
                     self._balance += pnl
                     self._open_position = None
-                    logger.info("Trade {} CLOSED LOSS @ {} pnl=-${:.2f}", trade_id[:8], sl, abs(pnl))
-                    self._notifier.send(f"❌ LOSS -${abs(pnl):.2f} ({pips:.1f} pips)")
+                    logger.info("Trade {} CLOSED {} @ {} pnl=${:.2f}", trade_id[:8], result.upper(), sl, pnl)
+                    self._notifier.send(
+                        f"{'✅ WIN' if result == 'win' else '❌ LOSS'} ${pnl:+.2f} ({pips:.1f} pips)"
+                    )
                 else:
                     # ── 3. Breakeven — only when SL is still above entry ──
                     if sl > entry:
