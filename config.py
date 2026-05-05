@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     london_session_start_utc: int = 7   # 07:00 UTC
     london_session_end_utc: int = 10    # 10:00 UTC
 
+    # Silver Bullet windows (UTC)
+    sb_window1_start_utc: int = 3       # 03:00 UTC (07:00 Sharjah)
+    sb_window1_end_utc: int = 4         # 04:00 UTC
+    sb_window2_start_utc: int = 10      # 10:00 UTC (14:00 Sharjah)
+    sb_window2_end_utc: int = 11        # 11:00 UTC
+    sb_window3_start_utc: int = 14      # 14:00 UTC (18:00 Sharjah)
+    sb_window3_end_utc: int = 15        # 15:00 UTC
+
     min_range_pips: float = 10.0
     max_range_pips: float = 50.0
     breakout_buffer_pips: float = 2.0

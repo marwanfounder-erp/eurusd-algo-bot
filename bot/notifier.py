@@ -93,10 +93,20 @@ class TelegramNotifier:
         rsi = signal.get("rsi", 0.0)
         confidence = signal.get("confidence", "?")
         range_pips = signal.get("range_pips", 0.0)
+        strategy = signal.get("strategy", "LB")
+
+        if strategy == "LB":
+            strategy_label = "London Breakout"
+            range_label = f"Asian range: {range_pips:.1f} pips"
+        else:
+            window = signal.get("window", strategy)
+            strategy_label = f"Silver Bullet ({window})"
+            range_label = f"FVG size: {range_pips:.1f} pips"
 
         emoji = "\U0001f7e2" if direction == "BUY" else "\U0001f534"
         message = (
             f"{emoji} <b>TRADE EXECUTED</b>\n"
+            f"Strategy : <b>{strategy_label}</b>\n"
             f"Symbol : <code>{settings.symbol}</code>\n"
             f"Direction : <b>{direction}</b>\n"
             f"Entry  : <code>{entry:.5f}</code>\n"
@@ -105,7 +115,7 @@ class TelegramNotifier:
             f"Lots   : <code>{lot}</code>\n"
             f"RSI    : <code>{rsi:.2f}</code>\n"
             f"Confidence : {confidence}\n"
-            f"Asian range: {range_pips:.1f} pips"
+            f"{range_label}"
         )
         self.send(message)
 
