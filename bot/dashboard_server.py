@@ -334,7 +334,6 @@ def api_trades():  # type: ignore[return]
             "pnl":       round(float(t.get("pnl") or 0), 2),
             "outcome":   t.get("result", ""),
             "rsi":       float(t.get("rsi") or 0),
-            "strategy":  t.get("strategy") or "LB",
         })
     return jsonify({"trades": out})
 

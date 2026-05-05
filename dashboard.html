@@ -218,10 +218,10 @@
   <h2>Trade History</h2>
   <table>
     <thead><tr>
-      <th>Date</th><th>Strategy</th><th>Dir</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Result</th>
+      <th>Date</th><th>Dir</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Result</th>
     </thead>
     <tbody id="tbl-trades">
-      <tr><td colspan="7" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>
+      <tr><td colspan="6" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>
     </tbody>
   </table>
 </div>
@@ -545,13 +545,8 @@ async function refresh() {
         ? '<span style="background:#23863622;color:#3fb950;border:0.5px solid #238636;padding:2px 7px;border-radius:4px;font-size:10px">WIN</span>'
         : '<span style="background:#da363622;color:#f85149;border:0.5px solid #da3633;padding:2px 7px;border-radius:4px;font-size:10px">LOSS</span>';
       const pnlColor = Number(t.pnl||0) >= 0 ? '#3fb950' : '#f85149';
-      const strat = t.strategy || 'LB';
-      const stratBadge = strat === 'LB'
-        ? '<span style="background:#1f3b6322;color:#58a6ff;border:0.5px solid #1f6feb;padding:2px 6px;border-radius:4px;font-size:10px">LB</span>'
-        : '<span style="background:#3b1f6322;color:#d2a8ff;border:0.5px solid #8957e5;padding:2px 6px;border-radius:4px;font-size:10px">'+strat+'</span>';
       return '<tr>'
         +'<td>'+(t.date||'—')+'</td>'
-        +'<td>'+stratBadge+'</td>'
         +'<td>'+(t.direction||'—')+'</td>'
         +'<td>'+(t.entry?Number(t.entry).toFixed(5):'—')+'</td>'
         +'<td>'+(t.exit?Number(t.exit).toFixed(5):'—')+'</td>'
@@ -560,7 +555,7 @@ async function refresh() {
         +'</tr>';
     }).join('');
   } else if(trEl) {
-    trEl.innerHTML = '<tr><td colspan="7" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>';
+    trEl.innerHTML = '<tr><td colspan="6" style="color:#8b949e;text-align:center;padding:16px">No trades yet</td></tr>';
   }
 
   // EQUITY

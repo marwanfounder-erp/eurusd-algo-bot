@@ -105,28 +105,14 @@ class PaperFeed:
     def get_candles(
         self,
         symbol: str,  # noqa: ARG002
-        timeframe: str,
+        timeframe: str,  # noqa: ARG002
         count: int = 200,
     ) -> pd.DataFrame:
-        """Return OHLCV data from Yahoo Finance for the requested timeframe."""
-        from bot.data_feed import TIMEFRAME_M5, TIMEFRAME_M15, TIMEFRAME_M30
-
-        if timeframe == TIMEFRAME_M5:
-            interval = "5m"
-            days = min(max(1, int(count * 5 / 1440) + 2), 58)
-        elif timeframe == TIMEFRAME_M15:
-            interval = "15m"
-            days = min(max(1, int(count * 15 / 1440) + 2), 58)
-        elif timeframe == TIMEFRAME_M30:
-            interval = "30m"
-            days = min(max(1, int(count * 30 / 1440) + 2), 58)
-        else:
-            interval = "1h"
-            days = min(int(count / 24) + 2, 729)
-
+        """Return real H1 OHLCV data from Yahoo Finance."""
+        days = min(int(count / 24) + 2, 729)
         period = f"{days}d"
         try:
-            df = self._ticker.history(period=period, interval=interval)
+            df = self._ticker.history(period=period, interval="1h")
         except Exception as exc:
             raise RuntimeError(f"yfinance get_candles failed: {exc}") from exc
 
@@ -146,8 +132,8 @@ class PaperFeed:
         df = df.sort_index().tail(count)
 
         logger.debug(
-            "PaperFeed candles | tf={} bars={} from={} to={}",
-            interval, len(df),
+            "PaperFeed candles | bars={} from={} to={}",
+            len(df),
             df.index[0].isoformat() if len(df) else "n/a",
             df.index[-1].isoformat() if len(df) else "n/a",
         )
@@ -175,7 +161,6 @@ class PaperFeed:
         lot: float,
         sl_pips: float,
         rsi: float | None = None,
-        strategy: str = "LB",
     ) -> dict[str, Any]:
         """Record a simulated open position and persist to DB."""
         opened_at = datetime.now(tz=timezone.utc).isoformat()
@@ -187,7 +172,6 @@ class PaperFeed:
             "lot":       lot,
             "sl_pips":   sl_pips,
             "rsi":       rsi,
-            "strategy":  strategy,
             "opened_at": opened_at,
             "date":      date.today().isoformat(),
         }

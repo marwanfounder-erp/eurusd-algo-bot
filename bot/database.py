@@ -54,23 +54,12 @@ class Database:
         self._lock = threading.Lock()
         self._db_url: str = ""
         self._connect()
-        self._migrate_schema()
 
         # Background keepalive — pings every 4 min so Neon never idles out
         t = threading.Thread(target=self._keepalive_ping, daemon=True)
         t.start()
 
     # ── Connection management ─────────────────────────────────────────
-
-    def _migrate_schema(self) -> None:
-        """Idempotently add any columns introduced after the initial schema."""
-        try:
-            self._run(
-                "ALTER TABLE trades ADD COLUMN IF NOT EXISTS strategy VARCHAR(10) DEFAULT 'LB'"
-            )
-            logger.debug("Schema migration: strategy column OK")
-        except Exception as exc:
-            logger.warning("Schema migration failed (non-fatal): {}", exc)
 
     def _connect(self) -> None:
         url = os.environ.get("DATABASE_URL", "")
@@ -217,8 +206,8 @@ class Database:
                 """
                 INSERT INTO trades
                   (id, symbol, direction, entry_price, stop_loss, take_profit,
-                   lot_size, rsi, status, mode, strategy, opened_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'open',%s,%s,%s)
+                   lot_size, rsi, status, mode, opened_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'open',%s,%s)
                 """,
                 (
                     trade_id,
@@ -230,11 +219,10 @@ class Database:
                     trade.get("lot", 0.0),
                     trade.get("rsi"),
                     trade.get("mode", "paper"),
-                    trade.get("strategy", "LB"),
                     trade.get("opened_at", datetime.now(tz=timezone.utc).isoformat()),
                 ),
             )
-            logger.info("DB: trade {} saved ({})", trade_id[:8], trade.get("strategy", "LB"))
+            logger.info("DB: trade {} saved", trade_id[:8])
         except Exception as exc:
             logger.error("DB save_trade failed: {}", exc)
         return trade_id
