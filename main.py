@@ -126,13 +126,14 @@ class TradingBot:
         from bot.news_filter import NewsFilter
         from bot.notifier import TelegramNotifier
         from bot.risk_manager import RiskManager
-        from bot.strategy import LondonBreakoutStrategy
+        from bot.strategy import LondonBreakoutStrategy, SilverBulletStrategy
 
         self._executor = OrderExecutor(self._feed)
         self._risk: RiskManager | None = (
             RiskManager(self._feed, self._executor) if mt5_ok else None
         )
         self._strategy = LondonBreakoutStrategy(self._feed)
+        self._sb_strategy = SilverBulletStrategy(self._feed)
         self._news = NewsFilter()
         self._notifier = TelegramNotifier()
 
@@ -254,8 +255,10 @@ class TradingBot:
             assert isinstance(self._feed, PaperFeed)
             self._feed.maybe_save_snapshot()
 
-        # f. Get signal
+        # f. Get signal — London Breakout first, then Silver Bullet
         trade_signal = self._strategy.get_signal(settings.symbol)
+        if trade_signal["direction"] == "NONE":
+            trade_signal = self._sb_strategy.get_signal(settings.symbol)
         if trade_signal["direction"] == "NONE":
             logger.debug("No signal this tick")
             return
@@ -284,6 +287,7 @@ class TradingBot:
         if self._paper:
             direction = str(trade_signal["direction"])
             tp = float(trade_signal["take_profit"])
+            strategy_name = str(trade_signal.get("strategy", "LB"))
 
             if self._is_paper_feed:
                 from bot.paper_feed import PaperFeed
@@ -296,13 +300,18 @@ class TradingBot:
                     lot=lot,
                     sl_pips=sl_pips,
                     rsi=float(trade_signal.get("rsi", 0)),
+                    strategy=strategy_name,
                 )
                 summary = self._feed.account_summary()
             else:
                 summary = f"balance=${settings.risk_per_trade * 100_000:,.0f} (MT5 paper)"
 
+            strategy_label = (
+                "London Breakout" if strategy_name == "LB"
+                else f"Silver Bullet ({trade_signal.get('window', strategy_name)})"
+            )
             msg = (
-                f"<b>[PAPER] {direction}</b> {lot:.2f} lots\n"
+                f"<b>[PAPER] {direction}</b> {lot:.2f} lots — {strategy_label}\n"
                 f"Entry: {entry:.5f} | SL: {sl:.5f} | TP: {tp:.5f}\n"
                 f"Range: {trade_signal.get('range_pips', 0):.1f}pips | "
                 f"RSI: {trade_signal.get('rsi', 50):.1f} | "
@@ -310,13 +319,13 @@ class TradingBot:
                 f"{summary}"
             )
             logger.info(
-                "PAPER TRADE | {} {:.2f}lots entry={:.5f} sl={:.5f} tp={:.5f}",
-                direction, lot, entry, sl, tp,
+                "PAPER TRADE | {} {} {:.2f}lots entry={:.5f} sl={:.5f} tp={:.5f}",
+                strategy_name, direction, lot, entry, sl, tp,
             )
             self._notifier.send(msg)
             self._db.log(
                 "INFO",
-                f"PAPER TRADE opened: {direction} {lot:.2f}lots @ {entry:.5f} "
+                f"PAPER TRADE opened: [{strategy_name}] {direction} {lot:.2f}lots @ {entry:.5f} "
                 f"sl={sl:.5f} tp={tp:.5f}"
             )
 
@@ -335,8 +344,9 @@ class TradingBot:
             )
             self._daily_stats["total_trades"] += 1
             self._notifier.send_trade_alert(trade_signal, lot)  # type: ignore[arg-type]
-            logger.info("Trade executed | result={}", result)
-            self._db.log("INFO", f"LIVE TRADE executed: {result}")
+            strategy_name = str(trade_signal.get("strategy", "LB"))
+            logger.info("Trade executed | {} result={}", strategy_name, result)
+            self._db.log("INFO", f"LIVE TRADE executed: [{strategy_name}] {result}")
         except Exception as exc:
             logger.error("Order execution failed: {}", exc)
             self._notifier.send_error(exc)
