@@ -80,7 +80,8 @@ def _fetch_price_raw() -> dict[str, Any]:
     try:
         feed = _bot_state.get("_feed_ref")
         if feed is not None:
-            tick = feed.get_tick("EURUSD")
+            from config import settings
+            tick = feed.get_tick(settings.symbol)
             return {
                 "bid":         tick["bid"],
                 "ask":         tick["ask"],
