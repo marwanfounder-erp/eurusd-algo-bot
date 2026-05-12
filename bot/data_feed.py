@@ -86,6 +86,14 @@ class DataFeed:
             info.currency,
         )
         self._connected = True
+
+        # Ensure the trading symbol is in Market Watch before any tick requests
+        if not mt5.symbol_select(settings.symbol, True):
+            logger.warning("symbol_select failed for {} — ticks may be unavailable", settings.symbol)
+        else:
+            logger.info("Symbol selected in Market Watch | {}", settings.symbol)
+            time.sleep(0.5)  # allow MT5 to load the symbol's tick data
+
         return True
 
     def shutdown(self) -> None:
