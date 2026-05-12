@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # Trading parameters
     symbol: str = "EURUSD"
+    paper_starting_balance: float = 10_000.0
     risk_per_trade: float = 0.01
     max_daily_loss: float = 0.04
     max_total_drawdown: float = 0.07

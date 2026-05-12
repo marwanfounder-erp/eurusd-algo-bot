@@ -15,11 +15,12 @@ import yfinance as yf
 from loguru import logger
 
 from bot.database import get_db
+from config import settings
 
 _SYMBOL_YF = "EURUSD.s=X"
 _SPREAD_PIP = 1.2
 _PIP = 0.0001
-_INITIAL_BALANCE = 10_000.0
+_INITIAL_BALANCE = settings.paper_starting_balance
 _SNAPSHOT_INTERVAL = 3600  # seconds between hourly snapshots
 
 
