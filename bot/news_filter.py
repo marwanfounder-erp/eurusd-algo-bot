@@ -20,24 +20,42 @@ class NewsFilter:
     def __init__(self) -> None:
         self._cache: list[dict[str, Any]] = []
         self._cache_ts: float = 0.0
+        self._rate_limited: bool = False  # True when last fetch hit 429 with no cache
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _fetch_calendar(self) -> list[dict[str, Any]]:
-        """Download the weekly calendar JSON and update the cache."""
-        try:
-            resp = requests.get(_FF_CALENDAR_URL, timeout=10)
-            resp.raise_for_status()
-            data: list[dict[str, Any]] = resp.json()
-            self._cache = data
-            self._cache_ts = time.monotonic()
-            logger.info("FF calendar fetched | {} events", len(data))
-            return data
-        except Exception as exc:
-            logger.error("FF calendar fetch failed: {} — using cached/safe-mode", exc)
-            return self._cache  # may be empty → safe-mode in callers
+        """Download the weekly calendar JSON, with one retry on 429."""
+        for attempt in range(2):
+            try:
+                resp = requests.get(
+                    _FF_CALENDAR_URL,
+                    timeout=10,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                if resp.status_code == 429:
+                    if attempt == 0:
+                        logger.warning("FF calendar rate limited (429) — waiting 60s and retrying")
+                        time.sleep(60)
+                        continue
+                    # Second attempt also 429 — fall through to cached/allow
+                    logger.warning("FF calendar still rate limited after retry — using cached data")
+                    self._rate_limited = not bool(self._cache)
+                    return self._cache
+                resp.raise_for_status()
+                data: list[dict[str, Any]] = resp.json()
+                self._cache = data
+                self._cache_ts = time.monotonic()
+                self._rate_limited = False
+                logger.info("FF calendar fetched | {} events", len(data))
+                return data
+            except Exception as exc:
+                logger.error("FF calendar fetch failed: {} — using cached/safe-mode", exc)
+                self._rate_limited = False  # real error, not rate limit
+                return self._cache  # empty → safe-mode in callers
+        return self._cache  # unreachable but satisfies type checker
 
     def _get_calendar(self) -> list[dict[str, Any]]:
         """Return cached data or re-fetch if TTL expired."""
@@ -87,7 +105,10 @@ class NewsFilter:
         """
         events = self._get_calendar()
         if not events:
-            # Empty means fetch failed — block trading (safe-mode)
+            if self._rate_limited:
+                # 429 with no cache — allow trading rather than blocking on rate limit
+                logger.warning("News calendar unavailable (rate limited) — allowing trade")
+                return False
             logger.warning("News calendar empty — blocking trading (safe-mode)")
             return True
 
