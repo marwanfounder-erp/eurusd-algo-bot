@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
 
     # Trading parameters
-    symbol: str = "EURUSD.s"
+    symbol: str = "EURUSD"
     risk_per_trade: float = 0.01
     max_daily_loss: float = 0.04
     max_total_drawdown: float = 0.07
