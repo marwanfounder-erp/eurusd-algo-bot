@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     max_slippage_pips: float = 3.0
     order_retry_attempts: int = 3
     order_retry_delay_seconds: float = 1.0
+    order_filling_mode: int = 0  # 0=FOK, 1=IOC, 2=RETURN
 
     # Risk checks
     friday_close_hour_utc: int = 21

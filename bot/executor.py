@@ -91,7 +91,7 @@ class OrderExecutor:
             raise ExecutionError("MetaTrader5 package not available")
 
         order_type = _mt5_const("ORDER_TYPE_BUY") if direction == "BUY" else _mt5_const("ORDER_TYPE_SELL")
-        filling = _mt5_const("ORDER_FILLING_FOK")
+        filling = settings.order_filling_mode
 
         # Current price for slippage check
         try:
@@ -205,7 +205,7 @@ class OrderExecutor:
             "magic": settings.order_magic_id,
             "comment": "close",
             "type_time": _mt5_const("ORDER_TIME_GTC"),
-            "type_filling": _mt5_const("ORDER_FILLING_FOK"),
+            "type_filling": settings.order_filling_mode,
         }
 
         result = mt5.order_send(request)
