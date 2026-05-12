@@ -11,7 +11,7 @@ GET /api/status    → bot status, balance, P&L
 GET /api/positions → open positions with live unrealized P&L
 GET /api/trades    → trade history (last 50, newest first)
 GET /api/risk      → risk metrics + safe-to-trade flag
-GET /api/price     → live EURUSD bid/ask (yfinance → raw Yahoo → cache)
+GET /api/price     → live EURUSD.s bid/ask (yfinance → raw Yahoo → cache)
 GET /api/news      → next 3 high-impact EUR/USD events
 GET /api/equity    → account snapshots for equity curve
 GET /api/logs      → last 50 bot log entries
@@ -73,14 +73,14 @@ def _seconds_to_london() -> int:
 
 
 def _fetch_price_raw() -> dict[str, Any]:
-    """Fetch EURUSD mid price.  Three-tier: feed → yfinance → raw Yahoo API."""
+    """Fetch EURUSD.s mid price.  Three-tier: feed → yfinance → raw Yahoo API."""
     half_spread = 1.2 * 0.0001 / 2
 
     # Tier 1 — live feed object
     try:
         feed = _bot_state.get("_feed_ref")
         if feed is not None:
-            from config import settings
+            from config import setEURUSD.s
             tick = feed.get_tick(settings.symbol)
             return {
                 "bid":         tick["bid"],
@@ -97,7 +97,7 @@ def _fetch_price_raw() -> dict[str, Any]:
         result: dict[str, Any] = {}
 
         def _yf_fetch() -> None:
-            import yfinance as yf
+            import yfinance asEURUSD.s
             hist = yf.Ticker("EURUSD=X").history(period="1d", interval="1m")
             if not hist.empty:
                 result["mid"] = float(hist["Close"].iloc[-1])
@@ -119,7 +119,7 @@ def _fetch_price_raw() -> dict[str, Any]:
 
     # Tier 3 — raw Yahoo API
     try:
-        resp = _req.get(
+        resp = _req.get(EURUSD.s
             "https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX"
             "?interval=1m&range=1d",
             headers={"User-Agent": "Mozilla/5.0"},
@@ -297,7 +297,7 @@ def api_positions():  # type: ignore[return]
             pip_move   = ((current_price - entry) if direction == "BUY"
                           else (entry - current_price)) / 0.0001
             unrealized = round(pip_move * 10 * float(pos.get("lot_size") or 0), 2)
-        positions.append({
+        positions.append({EURUSD.s
             "symbol":         pos.get("symbol", "EURUSD"),
             "direction":      direction,
             "entry":          entry,

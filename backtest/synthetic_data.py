@@ -1,10 +1,10 @@
 """
-Synthetic EURUSD H1 data generator for strategy validation.
+Synthetic EURUSD.s H1 data generator for strategy validation.
 
 Produces 3 years (2021-2024) of realistic H1 candles with:
 - Session-specific volatility (Asian tight, London breakout, NY drift)
 - Regime switching  : trending 60% / ranging 35% / news-spike 5%
-- Long-term price path matching broad 2021-2024 EURUSD movement
+- Long-term price path matching broad 2021-2024 EURUSD.s movement
 - Reproducible via numpy seed
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import pandas as pd
 
 PIP = 0.0001
 
-# Approximate quarterly EURUSD close prices 2021-2024
+# Approximate quarterly EURUSD.s close prices 2021-2024
 _QUARTERLY_TARGETS: dict[tuple[int, int], float] = {
     (2021, 1): 1.1950, (2021, 2): 1.1870, (2021, 3): 1.1600, (2021, 4): 1.1280,
     (2022, 1): 1.1050, (2022, 2): 1.0500, (2022, 3): 0.9900, (2022, 4): 1.0560,
@@ -191,13 +191,13 @@ def _rest_of_day_bars(
 # Public API
 # ──────────────────────────────────────────────────────────────────────
 
-def generate_eurusd_h1(
+def generate_EURUSD.s_h1(
     start_date: datetime | None = None,
     end_date:   datetime | None = None,
     seed:       int   = 42,
     initial_price: float = 1.2000,
 ) -> pd.DataFrame:
-    """Generate realistic synthetic EURUSD H1 OHLCV data.
+    """Generate realistic synthetic EURUSD.s H1 OHLCV data.
 
     Parameters
     ----------

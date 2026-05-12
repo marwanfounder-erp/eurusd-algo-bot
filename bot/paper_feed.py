@@ -1,4 +1,4 @@
-"""Paper trading data feed backed by yfinance real-time EURUSD data.
+"""Paper trading data feed backed by yfinance real-time EURUSD.s data.
 
 Used automatically when MetaTrader5 is unavailable (Linux / Railway).
 
@@ -16,7 +16,7 @@ from loguru import logger
 
 from bot.database import get_db
 
-_SYMBOL_YF = "EURUSD=X"
+_SYMBOL_YF = "EURUSD.s=X"
 _SPREAD_PIP = 1.2
 _PIP = 0.0001
 _INITIAL_BALANCE = 10_000.0
@@ -68,7 +68,7 @@ class PaperFeed:
     # ── Market data ────────────────────────────────────────────────────
 
     def get_tick(self, symbol: str) -> dict[str, float]:  # noqa: ARG002
-        """Return current EURUSD bid/ask from Yahoo Finance.
+        """Return current EURUSD.s bid/ask from Yahoo Finance.
 
         Yahoo Finance returns the mid price; we add ±0.6 pip spread.
         Uses 1-minute history for the freshest possible price.
@@ -194,7 +194,7 @@ class PaperFeed:
             logger.warning("close_position called but no open position")
             return {}
 
-        _PIP_VALUE = 10.0  # $10 per pip per standard lot for EURUSD
+        _PIP_VALUE = 10.0  # $10 per pip per standard lot for EURUSD.s
         direction = pos["direction"]
         entry = pos["entry"]
         lot = pos["lot"]
@@ -353,7 +353,7 @@ class PaperFeed:
             return
 
         try:
-            tick = self.get_tick("EURUSD")
+            tick = self.get_tick("EURUSD.s")
         except Exception:
             return
 

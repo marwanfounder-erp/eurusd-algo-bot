@@ -26,6 +26,6 @@ RUN mkdir -p /app/logs
 CMD ["python", "main.py", "--paper"]
 
 # ── Labels ────────────────────────────────────────────────────────────────
-LABEL maintainer="eurusd-algo-bot" \
+LABEL maintainer="EURUSD.s-algo-bot" \
       version="1.1.0" \
       description="EUR/USD London Breakout algo bot — paper mode on Railway/Linux, live via MT5 on Windows"

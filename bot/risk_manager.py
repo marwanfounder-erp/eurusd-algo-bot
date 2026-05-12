@@ -129,8 +129,8 @@ class RiskManager:
         equity = account["equity"]
         risk_amount = equity * settings.risk_per_trade
 
-        # Try MT5 for exact pip value; fall back to the standard EURUSD constant
-        pip_value_per_lot: float = 10.0  # $10 per pip per standard lot (EURUSD USD account)
+        # Try MT5 for exact pip value; fall back to the standard EURUSD.s constant
+        pip_value_per_lot: float = 10.0  # $10 per pip per standard lot (EURUSD.s USD account)
         try:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
             sym_info = mt5.symbol_info(symbol)

@@ -211,7 +211,7 @@ class Database:
                 """,
                 (
                     trade_id,
-                    trade.get("symbol", "EURUSD"),
+                    trade.get("symbol", "EURUSD.s"),
                     trade.get("direction", ""),
                     trade.get("entry", 0.0),
                     trade.get("sl", 0.0),

@@ -22,7 +22,7 @@ SPREAD_PIPS = 1.2
 SLIPPAGE_PIPS = 0.5
 TOTAL_COST_PIPS = SPREAD_PIPS + SLIPPAGE_PIPS
 
-PIP = 0.0001  # EURUSD
+PIP = 0.0001  # EURUSD.s
 
 
 def _rsi(closes: np.ndarray, period: int = 14) -> np.ndarray:
@@ -52,14 +52,14 @@ class Backtester:
     """
     Vectorised London Breakout backtester.
 
-    Downloads H1 EURUSD data from MT5 for 2021-01-01 → 2024-12-31.
+    Downloads H1 EURUSD.s data from MT5 for 2021-01-01 → 2024-12-31.
     Simulates the same breakout logic as the live LondonBreakoutStrategy
     but operates on the full dataset at once.
     """
 
     def __init__(
         self,
-        symbol: str = "EURUSD",
+        symbol: str = "EURUSD.s",
         start: datetime | None = None,
         end: datetime | None = None,
         initial_balance: float = 10_000.0,
@@ -197,7 +197,7 @@ class Backtester:
 
                 # Fixed fractional sizing (1% risk)
                 risk_amount = balance * settings.risk_per_trade
-                pip_value = 10.0  # $10/pip for 1 lot EURUSD standard account
+                pip_value = 10.0  # $10/pip for 1 lot EURUSD.s standard account
                 lot = min(
                     round(risk_amount / (sl_pips * pip_value), 2),
                     settings.max_lot_size,

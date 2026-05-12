@@ -94,7 +94,7 @@ def main() -> None:
                   (id, symbol, direction, entry_price, exit_price, stop_loss,
                    take_profit, lot_size, pips, pnl, status, result, rsi,
                    mode, opened_at, closed_at)
-                VALUES (%s,'EURUSD',%s,%s,%s,%s,%s,0.10,%s,%s,'closed',%s,%s,'paper',%s,%s)
+                VALUES (%s,'EURUSD.s',%s,%s,%s,%s,%s,0.10,%s,%s,'closed',%s,%s,'paper',%s,%s)
                 ON CONFLICT (id) DO NOTHING
                 """,
                 (
@@ -148,7 +148,7 @@ def main() -> None:
 
     print("\nInserting sample log entries...")
     sample_logs = [
-        ("INFO",    "Bot started — mode=PAPER feed=PaperFeed symbol=EURUSD"),
+        ("INFO",    "Bot started — mode=PAPER feed=PaperFeed symbol=EURUSD.s"),
         ("INFO",    "Signal: BUY | entry=1.08432 rsi=58.4"),
         ("INFO",    "PAPER TRADE opened: BUY 0.10lots @ 1.08432 sl=1.08182 tp=1.08932"),
         ("INFO",    "Position closed WIN @ 1.08932 pnl=$150.00 balance=$10150.00"),

@@ -101,7 +101,7 @@ class TestLotSize:
         # risk = 10000 * 0.01 = 100
         # pip_value = 100000 * 0.00001 * 10 = 10
         # lots = 100 / (20 * 10) = 0.50
-        lot = rm.calculate_lot_size("EURUSD", stop_loss_pips=20.0)
+        lot = rm.calculate_lot_size("EURUSD.s", stop_loss_pips=20.0)
         assert lot == pytest.approx(0.50, abs=0.01)
 
     @patch("MetaTrader5.symbol_info")
@@ -111,7 +111,7 @@ class TestLotSize:
         feed.get_account_info.return_value["equity"] = 10_000.0
 
         # With 1 pip SL, raw lot would be huge → should be capped at max_lot_size
-        lot = rm.calculate_lot_size("EURUSD", stop_loss_pips=0.1)
+        lot = rm.calculate_lot_size("EURUSD.s", stop_loss_pips=0.1)
         assert lot <= 5.0
 
     @patch("MetaTrader5.symbol_info")
@@ -120,14 +120,14 @@ class TestLotSize:
         rm, feed, _ = _make_risk_manager(balance=10_000)
         feed.get_account_info.return_value["equity"] = 1.0  # tiny equity
 
-        lot = rm.calculate_lot_size("EURUSD", stop_loss_pips=100.0)
+        lot = rm.calculate_lot_size("EURUSD.s", stop_loss_pips=100.0)
         assert lot >= 0.01
 
     @patch("MetaTrader5.symbol_info")
     def test_invalid_sl_pips_returns_minimum(self, mock_sym_info):
         mock_sym_info.return_value = self._make_sym_info()
         rm, feed, _ = _make_risk_manager(balance=10_000)
-        lot = rm.calculate_lot_size("EURUSD", stop_loss_pips=0.0)
+        lot = rm.calculate_lot_size("EURUSD.s", stop_loss_pips=0.0)
         assert lot == pytest.approx(0.01)
 
 
@@ -140,26 +140,26 @@ class TestIsSafeToTrade:
         rm, feed, executor = _make_risk_manager(balance=10_000)
         feed.get_account_info.return_value["equity"] = 10_000.0
         executor.get_open_positions.return_value = []
-        assert rm.is_safe_to_trade("EURUSD") is True
+        assert rm.is_safe_to_trade("EURUSD.s") is True
 
     def test_not_safe_daily_loss(self):
         rm, feed, executor = _make_risk_manager(balance=10_000)
         feed.get_account_info.return_value["equity"] = 9_500.0  # 5% loss
         executor.get_open_positions.return_value = []
-        assert rm.is_safe_to_trade("EURUSD") is False
+        assert rm.is_safe_to_trade("EURUSD.s") is False
 
     def test_not_safe_max_positions(self):
         rm, feed, executor = _make_risk_manager(balance=10_000)
         feed.get_account_info.return_value["equity"] = 10_000.0
         # 3 positions = max_open_positions reached
         executor.get_open_positions.return_value = [MagicMock(), MagicMock(), MagicMock()]
-        assert rm.is_safe_to_trade("EURUSD") is False
+        assert rm.is_safe_to_trade("EURUSD.s") is False
 
     def test_not_safe_drawdown(self):
         rm, feed, executor = _make_risk_manager(balance=10_000)
         feed.get_account_info.return_value["equity"] = 9_100.0  # 9% dd > 8% limit
         executor.get_open_positions.return_value = []
-        assert rm.is_safe_to_trade("EURUSD") is False
+        assert rm.is_safe_to_trade("EURUSD.s") is False
 
 
 # ---------------------------------------------------------------------------

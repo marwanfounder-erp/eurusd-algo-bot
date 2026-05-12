@@ -155,7 +155,7 @@ class TestGetSignal:
         ask = 1.0800 + 0.0002 + 0.0001  # buffer=2pips, then 1 pip above trigger
         self._setup_mock_feed(mock_feed, df, ask=ask, bid=ask - 0.0001)
 
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         # With rising closes RSI > 50, breakout above Asian high → BUY
         if signal["direction"] != "NONE":
             assert signal["direction"] == "BUY"
@@ -174,7 +174,7 @@ class TestGetSignal:
         bid = 1.0750 - 0.0002 - 0.0001
         self._setup_mock_feed(mock_feed, df, ask=bid + 0.0001, bid=bid)
 
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         if signal["direction"] != "NONE":
             assert signal["direction"] == "SELL"
             assert float(signal["stop_loss"]) > float(signal["entry"])
@@ -184,7 +184,7 @@ class TestGetSignal:
     def test_no_signal_outside_london(self, mock_london, strategy, mock_feed):
         df = _make_h1_df()
         self._setup_mock_feed(mock_feed, df, ask=1.0810, bid=1.0808)
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         assert signal["direction"] == "NONE"
 
     @patch("bot.strategy.LondonBreakoutStrategy.is_london_session", return_value=True)
@@ -192,7 +192,7 @@ class TestGetSignal:
         # Range of only 3 pips — too small
         df = _make_h1_df(asian_high=1.0800, asian_low=1.0797)
         self._setup_mock_feed(mock_feed, df, ask=1.0803, bid=1.0801)
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         assert signal["direction"] == "NONE"
 
     @patch("bot.strategy.LondonBreakoutStrategy.is_london_session", return_value=True)
@@ -206,7 +206,7 @@ class TestGetSignal:
         ask = 1.0800 + 0.0002 + 0.0001
         self._setup_mock_feed(mock_feed, df, ask=ask, bid=ask - 0.0001)
 
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         if signal["direction"] == "BUY":
             entry = float(signal["entry"])
             sl = float(signal["stop_loss"])
@@ -220,5 +220,5 @@ class TestGetSignal:
     @patch("bot.strategy.LondonBreakoutStrategy.is_london_session", return_value=True)
     def test_data_feed_error_returns_none(self, mock_london, strategy, mock_feed):
         mock_feed.get_candles.side_effect = RuntimeError("MT5 disconnected")
-        signal = strategy.get_signal("EURUSD")
+        signal = strategy.get_signal("EURUSD.s")
         assert signal["direction"] == "NONE"

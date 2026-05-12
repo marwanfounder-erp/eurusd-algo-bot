@@ -38,7 +38,7 @@ when the London session opens through the Asian consolidation range.
 ## Project Structure
 
 ```
-eurusd-algo-bot/
+EURUSD.s-algo-bot/
 ├── main.py              # Entry point + CLI (live / paper / backtest)
 ├── config.py            # Pydantic settings loaded from .env
 ├── bot/
@@ -99,7 +99,7 @@ python main.py paper
 # Live mode
 python main.py live
 
-# Backtest (requires MT5 with EURUSD H1 history 2021-2024)
+# Backtest (requires MT5 with EURUSD.s H1 history 2021-2024)
 python main.py backtest --output logs/backtest_report.html
 ```
 
@@ -109,15 +109,15 @@ python main.py backtest --output logs/backtest_report.html
 
 ```bash
 # Build
-docker build -t eurusd-algo-bot .
+docker build -t EURUSD.s-algo-bot .
 
 # Run (paper mode, logs persisted)
 docker run -d \
-  --name eurusd-bot \
+  --name EURUSD.s-bot \
   --restart always \
   -v $(pwd)/logs:/app/logs \
   --env-file .env \
-  eurusd-algo-bot paper
+  EURUSD.s-algo-bot paper
 ```
 
 > **Note:** MetaTrader5 Python package requires Windows or Wine on Linux.
@@ -145,7 +145,7 @@ All settings live in `.env` and are validated by Pydantic on startup.
 | `MT5_SERVER` | — | Broker server name |
 | `TELEGRAM_BOT_TOKEN` | — | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | — | Your chat or group ID |
-| `SYMBOL` | `EURUSD` | Trading instrument |
+| `SYMBOL` | `EURUSD.s` | Trading instrument |
 | `RISK_PER_TRADE` | `0.01` | Fraction of equity risked per trade (max 0.02) |
 | `MAX_DAILY_LOSS` | `0.04` | Daily drawdown limit (max 0.05) |
 | `MAX_TOTAL_DRAWDOWN` | `0.08` | Total drawdown limit |

@@ -62,7 +62,7 @@ def _build_mt5_mock() -> ModuleType:
     acc.currency = "USD"
     mt5.account_info.return_value = acc
 
-    # Symbol info: EURUSD standard account
+    # Symbol info: EURUSD.s standard account
     sym = MagicMock()
     sym.point = 0.00001
     sym.trade_contract_size = 100_000.0

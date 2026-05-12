@@ -270,7 +270,7 @@ def generate_report(
 </head>
 <body>
   <h1>📊 {title}</h1>
-  <div class="subtitle">Generated: {ts_str} &nbsp;|&nbsp; Strategy: London Session Breakout &nbsp;|&nbsp; Symbol: EURUSD H1</div>
+  <div class="subtitle">Generated: {ts_str} &nbsp;|&nbsp; Strategy: London Session Breakout &nbsp;|&nbsp; Symbol: EURUSD.s H1</div>
   <hr>
   {cards_html}
   {plot_html}

@@ -1,6 +1,6 @@
 """
 Comprehensive strategy validation:
-  Step 1 — Synthetic EURUSD H1 data generation (3 years, seed=42)
+  Step 1 — Synthetic EURUSD.s H1 data generation (3 years, seed=42)
   Step 2 — Full backtest with metrics
   Step 3 — HTML report (dark theme)
   Step 4 — Walk-forward analysis (6 × 6-month windows)
@@ -99,7 +99,7 @@ def _backtest(
     history is preserved even when start_date restricts the sim window.
     """
     PIP       = 0.0001
-    PIP_VALUE = 10.0      # $10 per pip per standard lot (EURUSD)
+    PIP_VALUE = 10.0      # $10 per pip per standard lot (EURUSD.s)
 
     # Pre-compute RSI once on the full series
     if rsi_arr is None:
@@ -319,10 +319,10 @@ def _calc_metrics(
 
 def step1_generate_data() -> pd.DataFrame:
     _sec("STEP 1 — SYNTHETIC DATA GENERATION")
-    from backtest.synthetic_data import generate_eurusd_h1
+    from backtest.synthetic_data import generate_EURUSD.s_h1
 
     t0 = time.perf_counter()
-    df = generate_eurusd_h1(seed=42, initial_price=1.2000)
+    df = generate_EURUSD.s_h1(seed=42, initial_price=1.2000)
     elapsed = time.perf_counter() - t0
 
     daily_ranges: list[float] = []
@@ -751,7 +751,7 @@ def main() -> None:
     _hdr(
         f"EUR/USD LONDON BREAKOUT — COMPREHENSIVE STRATEGY VALIDATION\n"
         f"  {'Date':<14}: {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"  {'Data':<14}: Synthetic EURUSD H1 (seed=42, 2021-2024)\n"
+        f"  {'Data':<14}: Synthetic EURUSD.s H1 (seed=42, 2021-2024)\n"
         f"  {'Strategy':<14}: London Session Breakout + RSI(14) filter + 1:2 R:R"
     )
 
