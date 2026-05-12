@@ -80,7 +80,7 @@ def _fetch_price_raw() -> dict[str, Any]:
     try:
         feed = _bot_state.get("_feed_ref")
         if feed is not None:
-            from config import setEURUSD.s
+            from config import settings
             tick = feed.get_tick(settings.symbol)
             return {
                 "bid":         tick["bid"],
@@ -97,7 +97,7 @@ def _fetch_price_raw() -> dict[str, Any]:
         result: dict[str, Any] = {}
 
         def _yf_fetch() -> None:
-            import yfinance asEURUSD.s
+            import yfinance as yf
             hist = yf.Ticker("EURUSD=X").history(period="1d", interval="1m")
             if not hist.empty:
                 result["mid"] = float(hist["Close"].iloc[-1])
@@ -119,7 +119,7 @@ def _fetch_price_raw() -> dict[str, Any]:
 
     # Tier 3 — raw Yahoo API
     try:
-        resp = _req.get(EURUSD.s
+        resp = _req.get(
             "https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX"
             "?interval=1m&range=1d",
             headers={"User-Agent": "Mozilla/5.0"},
@@ -297,8 +297,8 @@ def api_positions():  # type: ignore[return]
             pip_move   = ((current_price - entry) if direction == "BUY"
                           else (entry - current_price)) / 0.0001
             unrealized = round(pip_move * 10 * float(pos.get("lot_size") or 0), 2)
-        positions.append({EURUSD.s
-            "symbol":         pos.get("symbol", "EURUSD"),
+        positions.append({
+            "symbol":         pos.get("symbol", "EURUSD.s"),
             "direction":      direction,
             "entry":          entry,
             "current_price":  current_price,
