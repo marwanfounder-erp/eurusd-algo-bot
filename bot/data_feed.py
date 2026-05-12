@@ -127,7 +127,7 @@ class DataFeed:
 
     def get_candles(
         self,
-        symbol: str,EURUSD.s
+        symbol: str,
         timeframe: str,
         count: int = 500,
     ) -> pd.DataFrame:
