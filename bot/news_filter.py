@@ -113,8 +113,10 @@ class NewsFilter:
             return True
 
         now = datetime.now(tz=timezone.utc)
-        before_secs = settings.news_filter_before_minutes * 60
-        after_secs = settings.news_filter_after_minutes * 60
+        # Block window: [before_minutes] before → 0 → [after_minutes] after
+        # minutes_until > 0 → event in future, < 0 → event in past
+        before_min = settings.news_filter_before_minutes   # e.g. 30
+        after_min = settings.news_filter_after_minutes     # e.g. 60
 
         for event in events:
             if not self._is_high_impact_eur_usd(event):
@@ -124,17 +126,21 @@ class NewsFilter:
             if event_time is None:
                 continue
 
-            delta = (event_time - now).total_seconds()
-            # delta > 0 → event in future; delta < 0 → event in past
-            if -after_secs <= delta <= before_secs:
+            minutes_until = (event_time - now).total_seconds() / 60
+            # Block if: -after_min <= minutes_until <= before_min
+            # e.g. -60 <= minutes_until <= 30
+            if -after_min <= minutes_until <= before_min:
                 title = event.get("title", "Unknown")
                 currency = event.get("currency", "?")
-                minutes_away = delta / 60
+                if minutes_until >= 0:
+                    direction = f"in {minutes_until:.1f}min"
+                else:
+                    direction = f"{abs(minutes_until):.1f}min ago"
                 logger.warning(
-                    "High-impact event nearby | {} {} in {:.1f}min — blocking trade",
+                    "High-impact event nearby | {} {} {} — blocking trade",
                     currency,
                     title,
-                    minutes_away,
+                    direction,
                 )
                 return True
 
