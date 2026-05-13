@@ -127,6 +127,15 @@ class NewsFilter:
                 continue
 
             minutes_until = (event_time - now).total_seconds() / 60
+
+            if minutes_until < -after_min:
+                logger.debug(
+                    "Event passed {}+ min ago — trading allowed | {}",
+                    after_min,
+                    event.get("title", "Unknown"),
+                )
+                continue
+
             # Block if: -after_min <= minutes_until <= before_min
             # e.g. -60 <= minutes_until <= 30
             if -after_min <= minutes_until <= before_min:

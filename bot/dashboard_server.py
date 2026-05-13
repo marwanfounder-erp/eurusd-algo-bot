@@ -23,11 +23,12 @@ import os
 import threading
 import time
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
 import requests as _req
-from flask import Flask, jsonify, make_response, send_from_directory
+from flask import Flask, Response, jsonify, make_response, request, send_from_directory
 from flask_cors import CORS
 from loguru import logger
 
@@ -219,8 +220,35 @@ CORS(app)
 import logging as _logging
 _logging.getLogger("werkzeug").setLevel(_logging.ERROR)
 
+# ── Basic auth (dashboard UI only) ────────────────────────────────────
+_DASH_USER = os.getenv("DASHBOARD_USER", "admin")
+_DASH_PASS = os.getenv("DASHBOARD_PASS", "Trading@2026!")
+
+
+def _check_auth(username: str, password: str) -> bool:
+    return username == _DASH_USER and password == _DASH_PASS
+
+
+def _authenticate() -> Response:
+    return Response(
+        "Authentication required",
+        401,
+        {"WWW-Authenticate": 'Basic realm="Bot Dashboard"'},
+    )
+
+
+def requires_auth(f):  # type: ignore[no-untyped-def]
+    @wraps(f)
+    def decorated(*args, **kwargs):  # type: ignore[no-untyped-def]
+        auth = request.authorization
+        if not auth or not _check_auth(auth.username, auth.password):
+            return _authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
 
 @app.route("/")
+@requires_auth
 def index():  # type: ignore[return]
     resp = make_response(send_from_directory(str(_DASHBOARD_DIR), "dashboard.html"))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
