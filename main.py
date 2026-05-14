@@ -196,10 +196,97 @@ class TradingBot:
         return now.weekday() == 4 and now.hour >= settings.friday_close_hour_utc
 
     # ------------------------------------------------------------------
+    # Time limit enforcement (paper + live)
+    # ------------------------------------------------------------------
+
+    def _check_time_limit(self) -> None:
+        try:
+            if self._paper:
+                open_trades = self._db.get_open_trades()
+                for trade in open_trades:
+                    opened_at = datetime.fromisoformat(
+                        str(trade['opened_at'])
+                    ).replace(tzinfo=timezone.utc)
+                    hours_open = (
+                        datetime.now(timezone.utc) - opened_at
+                    ).total_seconds() / 3600
+
+                    if hours_open >= 20:
+                        logger.warning(
+                            f"Time limit reached | "
+                            f"trade={trade['id'][:8]} "
+                            f"hours={hours_open:.1f}"
+                        )
+                        tick = self._feed.get_tick(settings.symbol)
+                        if tick:
+                            price = tick['bid']
+                            entry = float(trade['entry_price'])
+                            lot = float(trade['lot_size'])
+                            direction = trade['direction']
+                            if direction == 'BUY':
+                                pips = (price - entry) / 0.0001
+                            else:
+                                pips = (entry - price) / 0.0001
+                            pnl = pips * 10 * lot
+                            result = 'win' if pnl > 0 else 'loss'
+                            self._db.close_trade(
+                                trade['id'], price, pnl, pips, result
+                            )
+                            logger.info(
+                                f"Time limit close (paper) | "
+                                f"pnl=${pnl:.2f}"
+                            )
+                            self._notifier.send(
+                                f"Time limit close | "
+                                f"P&L: ${pnl:.2f}"
+                            )
+            else:
+                import MetaTrader5 as mt5
+                positions = mt5.positions_get(symbol=settings.symbol)
+                if not positions:
+                    return
+
+                for pos in positions:
+                    opened_at = datetime.fromtimestamp(
+                        pos.time, tz=timezone.utc
+                    )
+                    hours_open = (
+                        datetime.now(timezone.utc) - opened_at
+                    ).total_seconds() / 3600
+
+                    if hours_open >= 20:
+                        logger.warning(
+                            f"Time limit reached | "
+                            f"ticket={pos.ticket} "
+                            f"hours={hours_open:.1f} "
+                            f"pnl=${pos.profit:.2f}"
+                        )
+                        result = self._executor.close_position(pos.ticket)
+                        if result.get('success'):
+                            logger.info(
+                                f"Time limit close (live) | "
+                                f"ticket={pos.ticket} "
+                                f"pnl=${pos.profit:.2f}"
+                            )
+                            self._notifier.send(
+                                f"Time limit close | "
+                                f"P&L: ${pos.profit:.2f}"
+                            )
+                        else:
+                            logger.error(
+                                f"Time limit close FAILED | "
+                                f"ticket={pos.ticket}"
+                            )
+        except Exception as e:
+            logger.error(f"Time limit check error: {e}")
+
+    # ------------------------------------------------------------------
     # Main loop iteration
     # ------------------------------------------------------------------
 
     def _tick(self) -> None:
+        self._check_time_limit()
+
         # Monitor open positions for TP/SL hits on every iteration (paper feed only)
         if self._is_paper_feed:
             from bot.paper_feed import PaperFeed
